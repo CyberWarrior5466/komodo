@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 capstone = "0.13.0"
+goblin = "0.10.1"
 tempfile = "3.23.0"
