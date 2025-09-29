@@ -1,16 +1,15 @@
+use capstone::Capstone;
+use capstone::arch::BuildsCapstone;
+use capstone::prelude::*;
 use goblin;
 use std::env;
 use std::ffi::OsString;
 use std::io::{self, Write};
 use std::io::{BufRead, Read};
 use std::process::{self, exit};
-use tempfile;
+use tempfile::{self, NamedTempFile};
 
 fn main() {
-    do_thing();
-}
-
-fn do_thing() {
     let args: Vec<OsString> = env::args_os().collect();
 
     let mut input_file = tempfile::NamedTempFile::new().unwrap();
@@ -43,13 +42,51 @@ fn do_thing() {
         exit(output.status.code().unwrap_or(1));
     }
 
+    let text_section =
+        extract_text_section(&mut output_file).expect("could not find .text section");
+    // for byte in text_section.iter() {
+    //     print!("{:02x} ", byte);
+    // }
+    // println!();
+
+    let cs = Capstone::new()
+        .arm()
+        .mode(arch::arm::ArchMode::Arm)
+        .detail(true)
+        .build()
+        .expect("Failed to run capstone");
+
+    let instrs = cs
+        .disasm_all(text_section.as_slice(), 0)
+        .expect("Failed to diassemble");
+    for i in instrs.as_ref() {
+        println!("{} {}", i.mnemonic().unwrap(), i.op_str().unwrap());
+
+        let detail: InsnDetail = cs.insn_detail(&i).expect("Failed to get insn detail");
+        let arch_detail: ArchDetail = detail.arch_detail();
+        let ops = arch_detail.operands();
+        for op in ops {
+            println!("{:8}{:?}", "", op);
+        }
+    }
+}
+
+fn extract_text_section(output_file: &mut NamedTempFile) -> Option<Vec<u8>> {
     let mut buf: Vec<u8> = Vec::new();
     output_file.read_to_end(&mut buf).unwrap();
 
     let parsed = goblin::Object::parse(&buf).unwrap();
     if let goblin::Object::Elf(elf) = parsed {
-        for header in elf.section_headers.iter() {}
-    } else {
-        panic!("Unexpected object format");
+        for header in elf.section_headers.iter() {
+            let name = elf.shdr_strtab.get_at(header.sh_name).unwrap();
+            if name == ".text" {
+                let start = header.sh_offset as usize;
+                let end = header.sh_offset as usize + header.sh_size as usize;
+                let text_bytes = buf[start..end].to_owned();
+                return Some(text_bytes);
+            }
+        }
     }
+
+    return None;
 }
