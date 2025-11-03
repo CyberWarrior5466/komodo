@@ -7,10 +7,10 @@ use capstone::arch::ArchOperand;
 use capstone::arch::BuildsCapstone;
 use capstone::arch::arm::ArmOperand;
 use capstone::arch::arm::ArmShift::Asr;
+use capstone::arch::arm::ArmShift::Invalid;
 use capstone::arch::arm::ArmShift::Lsl;
 use capstone::arch::arm::ArmShift::Lsr;
 use capstone::arch::arm::ArmShift::Ror;
-use capstone::arch::arm::ArmShift::Invalid;
 use capstone::prelude::*;
 use goblin;
 use os_info;
@@ -138,7 +138,7 @@ fn extract_condition(i: &Insn) -> [String; 2] {
     // A4.2, p436 from DDI01001 spec
     let valid_mnemonics = [
         "add", "sub", "mul", "and", "bic", "clz", "eor", "mla", "mov", "lsl", "lsr", "asr", "ror",
-        "rrx",
+        "rrx", "mvn",
     ];
     // A3.2.1, p112 from DDI01001 spec
     let valid_conditions = [
@@ -274,7 +274,10 @@ fn execute(
                         panic!("Unrecognised operands for {} instruction", mneomonic)
                     }
                 }
-                _ => panic!("Unrecognised shift {:?} in {} instruction", shift, mneomonic),
+                _ => panic!(
+                    "Unrecognised shift {:?} in {} instruction",
+                    shift, mneomonic
+                ),
             },
             _ => match mneomonic.as_str() {
                 "lsl" => match op_types.as_slice() {
@@ -306,6 +309,13 @@ fn execute(
                 _ => panic!("Unrecognised shift instruction"),
             },
         },
-        _ => panic!("Unrecognised mnemonic {}", mneomonic)
+
+        "mvn" => match op_types.as_slice() {
+            [Reg(rd_id), Imm(n)] => regs[rd_id] = !*n,
+            [Reg(rd_id), Reg(rn_id)] => regs[rd_id] = !regs[rn_id],
+            _ => panic!("Unrecognised operands for mov instruction"),
+        },
+
+        _ => panic!("Unrecognised mnemonic {}", mneomonic),
     }
 }

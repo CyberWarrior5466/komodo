@@ -29,6 +29,20 @@ impl IndexMut<&RegId> for Registers {
     }
 }
 
+impl Index<u16> for Registers {
+    type Output = i32;
+
+    fn index(&self, index: u16) -> &Self::Output {
+        &self.regs[index as usize - ARM_REG_R0 as usize]
+    }
+}
+
+impl IndexMut<u16> for Registers {
+    fn index_mut(&mut self, index: u16) -> &mut Self::Output {
+        &mut self.regs[index as usize - ARM_REG_R0 as usize]
+    }
+}
+
 impl Debug for Registers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

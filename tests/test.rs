@@ -136,7 +136,70 @@ mod tests {
         mock_program(b"mov r0, #0xF000001F");
     }
 
+    #[test]
+    fn test_mvn() {
+        let regs = mock_program(
+            b"
+            mvn r0, #0
+            mvn r1, #0xf
+            ",
+        );
+        assert_eq!(regs[&RegId(ARM_REG_R0 as u16)], -1);
+        assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], -16);
+    }
+
+    #[test]
+    fn test_add() {
+        let regs = mock_program(
+            b"
+            mov r0, #1
+            add r1, r0, #2
+            add r2, r0, r1
+
+            mvn r3, #0 // -1
+            add r4, r3, r3
+            ",
+        );
+        assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 3);
+        assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 4);
+
+        assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], -2);
+    }
+
+    #[test]
+    fn test_sub() {
+        let regs = mock_program(
+            b"
+            mov r0, #3
+            sub r1, r0, #1
+            sub r2, r0, r1
+
+            mov r3, #0
+            sub r4, r3, #1
+            // 0 - 1 = -1
+            ",
+        );
+
+        assert_eq!(regs[ARM_REG_R1 as u16], 2);
+        assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 1);
+
+        assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], -1);
+    }
+
     // #[test]
-    // fn test_mvn() {
+    // fn test_mul() {
+    //     let regs = mock_program(
+    //         b"
+    //         mov r0, #2
+    //         mul r1, r0, #3
+    //         mul r2, r0, r0
+
+    //         // some_large_num * some_large_num = overflows
+    //         ",
+    //     );
+    //     assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 6);
+    //     assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 4);
+
+    //     assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], -1);
     // }
 }
