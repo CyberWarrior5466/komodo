@@ -58,6 +58,49 @@ mod tests {
     }
 
     #[test]
+    fn test_mov_shift() {
+        let regs = mock_program(
+            b"
+            mov r0, #4
+            mov r1, #1
+
+            mov r2, r0, LSL #2
+            mov r3, r0, LSL r1
+
+            mov r4, r0, LSR #2
+            mov r5, r0, LSR r1
+
+            mov r6, r0, ASR #2
+            mov r7, r0, ASR r1
+
+            mov r8, r1, ROR #2 // 0b01000000...
+            mov r9, r1, ROR r1 // 0b10000000...
+
+            mov r10, r1, RRX // 0b1000000...
+        ",
+        );
+
+        assert_eq!(regs[&RegId(ARM_REG_R0 as u16)], 4);
+        assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 1);
+
+        assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 16);
+        assert_eq!(regs[&RegId(ARM_REG_R3 as u16)], 8);
+
+        assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], 1);
+        assert_eq!(regs[&RegId(ARM_REG_R5 as u16)], 2);
+
+        assert_eq!(regs[&RegId(ARM_REG_R6 as u16)], 1);
+        assert_eq!(regs[&RegId(ARM_REG_R7 as u16)], 2);
+
+        assert_eq!(regs[&RegId(ARM_REG_R8 as u16)], 1073741824);
+        assert_eq!(regs[&RegId(ARM_REG_R9 as u16)], -2147483648);
+
+        assert_eq!(regs[&RegId(ARM_REG_R10 as u16)], -2147483648);
+
+        // TODO: assert_eq r8,r9,r10
+    }
+
+    #[test]
     #[should_panic]
     fn test_mov_panic_1() {
         mock_program(b"mov r0, #0x101");
@@ -93,8 +136,7 @@ mod tests {
         mock_program(b"mov r0, #0xF000001F");
     }
 
-    #[test]
-    fn test_mvn() {
-        let regs = mock_program(b"");
-    }
+    // #[test]
+    // fn test_mvn() {
+    // }
 }

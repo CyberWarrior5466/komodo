@@ -6,6 +6,11 @@ use capstone::Insn;
 use capstone::arch::ArchOperand;
 use capstone::arch::BuildsCapstone;
 use capstone::arch::arm::ArmOperand;
+use capstone::arch::arm::ArmShift::Asr;
+use capstone::arch::arm::ArmShift::Lsl;
+use capstone::arch::arm::ArmShift::Lsr;
+use capstone::arch::arm::ArmShift::Ror;
+use capstone::arch::arm::ArmShift::Invalid;
 use capstone::prelude::*;
 use goblin;
 use os_info;
@@ -107,7 +112,7 @@ fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
             if let io::ErrorKind::NotFound = e.kind() {
                 match os_info::get().os_type() {
                     os_info::Type::Ubuntu | os_info::Type::Debian => panic!(
-                        "Cannot find `arm-linux-gnuabi-as`, try running:\n\tapt install binutils-arm-linux-gnueabihf"
+                        "Cannot find `arm-linux-gnueabi-as`, try running:\n\tapt install binutils-arm-linux-gnueabi"
                     ),
                     os_info::Type::Fedora => panic!(
                         "Cannot find `arm-linux-gnu-as`, try running:\n\tdnf install binutils-arm-linux-gnu"
@@ -123,6 +128,7 @@ fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
             if output.status.success() {
                 return Ok(());
             }
+            eprintln!("{}", String::from_utf8_lossy(&output.stderr));
             return Err(());
         }
     }
@@ -254,18 +260,21 @@ fn execute(
                     access: _,
                 }),
             ] => match shift {
-                arch::arm::ArmShift::Lsl(n) => regs[rd_id] = regs[rn_id] << n,
-                arch::arm::ArmShift::Lsr(n) => regs[rd_id] = regs[rn_id] >> n,
-                arch::arm::ArmShift::Asr(n) => {
-                    // TODO: this is probably wrong
-                    regs[rd_id] = (regs[rn_id] as u32 >> *n as u32) as i32
+                Lsl(n) => regs[rd_id] = regs[rn_id] << n,
+                Lsr(n) => regs[rd_id] = regs[rn_id] >> n,
+                // TODO: this is probably wrong
+                Asr(n) => regs[rd_id] = (regs[rn_id] as u32 >> *n as u32) as i32,
+                Ror(n) => regs[rd_id] = regs[rn_id].rotate_right(*n),
+                Invalid => {
+                    if mneomonic == "rrx" {
+                        regs[rd_id] = regs[rn_id].rotate_right(1);
+                        // set the 31st bit (MSB) to 0
+                        regs[rn_id] &= !(1 << 31);
+                    } else {
+                        panic!("Unrecognised operands for {} instruction", mneomonic)
+                    }
                 }
-                arch::arm::ArmShift::Ror(n) => regs[rd_id] = regs[rn_id].rotate_right(*n),
-                arch::arm::ArmShift::Rrx(n) => {
-                    // TODO: extend the shift to the carry bit
-                    regs[rd_id] = regs[rn_id].rotate_right(*n)
-                }
-                _ => panic!("Unrecognised shift in lsl/lsr/asr/ror/rrx instruction"),
+                _ => panic!("Unrecognised shift {:?} in {} instruction", shift, mneomonic),
             },
             _ => match mneomonic.as_str() {
                 "lsl" => match op_types.as_slice() {
@@ -281,8 +290,8 @@ fn execute(
                     _ => panic!("Unrecognised operands for lsr instruction"),
                 },
                 "asr" => match op_types.as_slice() {
+                    // TODO: this is probably wrong
                     [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
-                        // TODO: this is probably wrong
                         regs[rd_id] = (regs[rn_id] as u32 >> regs[rm_id] as u32) as i32
                     }
                     _ => panic!("Unrecognised operands for asr instruction"),
@@ -294,16 +303,9 @@ fn execute(
 
                     _ => panic!("Unrecognised operands for ror instruction"),
                 },
-                "rrx" => match op_types.as_slice() {
-                    [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
-                        regs[rd_id] = regs[rn_id].rotate_right(regs[rm_id] as u32);
-                    }
-                    _ => panic!("Unrecognised operands for rrx instruction"),
-                },
                 _ => panic!("Unrecognised shift instruction"),
             },
         },
-
-        mneomonic => panic!("Unrecognised instruction {}", mneomonic),
+        _ => panic!("Unrecognised mnemonic {}", mneomonic)
     }
 }
