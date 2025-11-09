@@ -181,9 +181,9 @@ mod tests {
         );
 
         assert_eq!(regs[ARM_REG_R1 as u16], 2);
-        assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 1);
+        assert_eq!(regs[ARM_REG_R2 as u16], 1);
 
-        assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], -1);
+        assert_eq!(regs[ARM_REG_R4 as u16], -1);
     }
 
     // #[test]

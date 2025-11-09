@@ -6,12 +6,15 @@ use capstone::Insn;
 use capstone::arch::ArchOperand;
 use capstone::arch::BuildsCapstone;
 use capstone::arch::arm::ArmOperand;
+use capstone::arch::arm::ArmReg::ARM_REG_APSR;
+use capstone::arch::arm::ArmReg::ARM_REG_SPSR;
 use capstone::arch::arm::ArmShift::Asr;
 use capstone::arch::arm::ArmShift::Invalid;
 use capstone::arch::arm::ArmShift::Lsl;
 use capstone::arch::arm::ArmShift::Lsr;
 use capstone::arch::arm::ArmShift::Ror;
 use capstone::prelude::*;
+use core::ops;
 use goblin;
 use os_info;
 use std::env;
@@ -137,8 +140,8 @@ fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
 fn extract_condition(i: &Insn) -> [String; 2] {
     // A4.2, p436 from DDI01001 spec
     let valid_mnemonics = [
-        "add", "sub", "mul", "and", "bic", "clz", "eor", "mla", "mov", "lsl", "lsr", "asr", "ror",
-        "rrx", "mvn",
+        "add", "sub", "mul", "and", "bic", "clz", "eor", "or", "mla", "mov", "lsl", "lsr", "asr",
+        "ror", "rrx", "mvn", "cmp", "mrs",
     ];
     // A3.2.1, p112 from DDI01001 spec
     let valid_conditions = [
@@ -161,7 +164,8 @@ fn extract_condition(i: &Insn) -> [String; 2] {
         }
     }
 
-    panic!("Unrecognised mnemonic {}", mnemonic);
+    // panic!("Unrecognised mnemonic {}", mnemonic);
+    return [String::from("cmp"), String::new()];
 }
 
 fn execute(
@@ -175,8 +179,8 @@ fn execute(
     let arch_detail: ArchDetail = detail.arch_detail();
     let ops = arch_detail.operands();
 
+    eprintln!("{} {}", i.mnemonic().unwrap(), i.op_str().unwrap());
     eprintln!("{:?}", ops);
-    eprintln!("{}", i.op_str().unwrap());
 
     let op_types: Vec<ArmOperandType> = ops
         .iter()
@@ -190,33 +194,17 @@ fn execute(
         .collect();
 
     match mneomonic.as_str() {
-        "add" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rn_id), Imm(n)] => regs[rd_id] = regs[rn_id] + n,
-            [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => regs[rd_id] = regs[rn_id] + regs[rm_id],
-            _ => panic!("Unrecognised operands for add instruction"),
-        },
-
-        "sub" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rn_id), Imm(n)] => regs[rd_id] = regs[rn_id] - n,
-            [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => regs[rd_id] = regs[rn_id] - regs[rm_id],
-            _ => panic!("Unrecognised operands for sub instruction"),
+        "add" | "sub" | "and" | "bic" | "eor" | "orr" => match op_types.as_slice() {
+            [Reg(rd_id), Reg(rn_id), Imm(n)] => regs[rd_id] = binary_op(mneomonic)(regs[rn_id], *n),
+            [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
+                regs[rd_id] = binary_op(mneomonic)(regs[rn_id], regs[rm_id])
+            }
+            _ => panic!(),
         },
 
         "mul" => match op_types.as_slice() {
             [Reg(rd_id), Reg(rm_id), Reg(rs_id)] => regs[rd_id] = regs[rm_id] * regs[rs_id],
-            _ => panic!("Unrecognised operands for mul instruction"),
-        },
-
-        "and" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rn_id), Imm(n)] => regs[rd_id] = regs[rn_id] & n,
-            [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => regs[rd_id] = regs[rn_id] & regs[rm_id],
-            _ => panic!("Unrecognised operands for and instruction"),
-        },
-
-        "bic" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rn_id), Imm(n)] => regs[rd_id] = regs[rn_id] & n,
-            [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => regs[rd_id] = regs[rn_id] & regs[rm_id],
-            _ => panic!("Unrecognised operands for bic instruction"),
+            _ => panic!(),
         },
 
         "clz" => match op_types.as_slice() {
@@ -224,23 +212,17 @@ fn execute(
             _ => panic!(),
         },
 
-        "eor" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rn_id), Imm(n)] => regs[rd_id] = regs[rn_id] ^ n,
-            [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => regs[rd_id] = regs[rn_id] ^ regs[rm_id],
-            _ => panic!("Unrecognised operands for bic instruction"),
-        },
-
         "mla" => match op_types.as_slice() {
             [Reg(rd_id), Reg(rm_id), Reg(rs_id), Reg(rn_id)] => {
                 regs[rd_id] = regs[rm_id] * regs[rs_id] + regs[rn_id]
             }
-            _ => panic!("Unrecognised operands for mla instruction"),
+            _ => panic!(),
         },
 
         "mov" => match op_types.as_slice() {
             [Reg(rd_id), Imm(n)] => regs[rd_id] = *n,
             [Reg(rd_id), Reg(rn_id)] => regs[rd_id] = regs[rn_id],
-            _ => panic!("Unrecognised operands for mov instruction"),
+            _ => panic!(),
         },
 
         "lsl" | "lsr" | "asr" | "ror" | "rrx" => match ops.as_slice() {
@@ -313,9 +295,35 @@ fn execute(
         "mvn" => match op_types.as_slice() {
             [Reg(rd_id), Imm(n)] => regs[rd_id] = !*n,
             [Reg(rd_id), Reg(rn_id)] => regs[rd_id] = !regs[rn_id],
-            _ => panic!("Unrecognised operands for mov instruction"),
+            _ => panic!(),
+        },
+
+        "cmp" => match op_types.as_slice() {
+            _ => panic!(),
+        },
+
+        "mrs" => match op_types.as_slice() {
+            [Reg(rd_id), Reg(rn_id)] => {
+                if rn_id.0 == ARM_REG_APSR as u16 || rn_id.0 == ARM_REG_SPSR as u16 {
+                    regs[rd_id] = regs[rn_id];
+                } else {
+                    panic!();
+                }
+            }
+            _ => panic!("mrs instr"),
         },
 
         _ => panic!("Unrecognised mnemonic {}", mneomonic),
     }
+}
+
+fn binary_op(mneomonic: String) -> fn(i32, i32) -> i32 {
+    return match mneomonic.as_str() {
+        "add" => ops::Add::add,
+        "sub" => ops::Sub::sub,
+        "and" => ops::BitAnd::bitand,
+        "eor" => ops::BitXor::bitxor,
+        "orr" => ops::BitOr::bitor,
+        _ => panic!(),
+    };
 }

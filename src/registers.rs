@@ -3,15 +3,18 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use capstone::{RegId, arch::arm::ArmReg::ARM_REG_R0};
+use capstone::{
+    RegId,
+    arch::arm::ArmReg::{ARM_REG_APSR, ARM_REG_CPSR, ARM_REG_R0, ARM_REG_SPSR},
+};
 
 pub struct Registers {
-    regs: [i32; 16],
+    regs: [i32; 18],
 }
 
 impl Registers {
     pub fn new() -> Registers {
-        Registers { regs: [0; 16] }
+        Registers { regs: [0; 18] }
     }
 }
 
@@ -19,12 +22,22 @@ impl Index<&RegId> for Registers {
     type Output = i32;
 
     fn index(&self, rd_id: &RegId) -> &Self::Output {
+        if rd_id.0 == ARM_REG_APSR as u16 {
+            return &self.regs[16];
+        } else if rd_id.0 == ARM_REG_SPSR as u16 {
+            return &self.regs[17];
+        }
         &self.regs[rd_id.0 as usize - ARM_REG_R0 as usize]
     }
 }
 
 impl IndexMut<&RegId> for Registers {
     fn index_mut(&mut self, rd_id: &RegId) -> &mut Self::Output {
+        if rd_id.0 == ARM_REG_APSR as u16 {
+            return &mut self.regs[16];
+        } else if rd_id.0 == ARM_REG_SPSR as u16 {
+            return &mut self.regs[17];
+        }
         &mut self.regs[rd_id.0 as usize - ARM_REG_R0 as usize]
     }
 }
@@ -33,12 +46,22 @@ impl Index<u16> for Registers {
     type Output = i32;
 
     fn index(&self, index: u16) -> &Self::Output {
+        if index == ARM_REG_APSR as u16 {
+            return &self.regs[16];
+        } else if index == ARM_REG_SPSR as u16 {
+            return &self.regs[17];
+        }
         &self.regs[index as usize - ARM_REG_R0 as usize]
     }
 }
 
 impl IndexMut<u16> for Registers {
     fn index_mut(&mut self, index: u16) -> &mut Self::Output {
+        if index == ARM_REG_APSR as u16 {
+            return &mut self.regs[16];
+        } else if index == ARM_REG_SPSR as u16 {
+            return &mut self.regs[17];
+        }
         &mut self.regs[index as usize - ARM_REG_R0 as usize]
     }
 }
