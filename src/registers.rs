@@ -5,7 +5,7 @@ use std::{
 
 use capstone::{
     RegId,
-    arch::arm::ArmReg::{ARM_REG_APSR, ARM_REG_CPSR, ARM_REG_R0, ARM_REG_SPSR},
+    arch::arm::ArmReg::{ARM_REG_APSR, ARM_REG_R0, ARM_REG_SPSR},
 };
 
 pub struct Registers {
@@ -22,6 +22,8 @@ impl Index<&RegId> for Registers {
     type Output = i32;
 
     fn index(&self, rd_id: &RegId) -> &Self::Output {
+        // capstone::arch::arm64::Arm64Sysreg
+
         if rd_id.0 == ARM_REG_APSR as u16 {
             return &self.regs[16];
         } else if rd_id.0 == ARM_REG_SPSR as u16 {

@@ -60,3 +60,20 @@ just add it anyway incase you need it in the future
 what is the operand format
 
 `apsr` is application program status register
+
+forget the `msr` instruction, do it later,
+
+`cmp` instruction
+
+```
+mov r0, #0
+cmp r0, #1
+mrs r1, cpsr
+// what is cpsr
+// 0x80000010
+// nzcv
+// 0x8 = 1000
+// last 4 bits
+```
+
+function that takes in `StatusFlags` and converts it to

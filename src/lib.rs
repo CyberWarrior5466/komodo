@@ -26,6 +26,36 @@ use tempfile::{self, NamedTempFile};
 
 pub mod registers;
 
+struct StatusFlags {
+    negative: bool,
+    zero: bool,
+    carry: bool,
+    overflow: bool,
+    processor_mode: ProcessorMode,
+}
+
+impl From<i32> for StatusFlags {
+    fn from(item: i32) -> Self {
+        StatusFlags {
+            negative: item & (1 << 31) != 0,
+            zero: item & (1 << 30) != 0,
+            carry: item & (1 << 29) != 0,
+            overflow: item & (1 << 28) != 0,
+            processor_mode: ProcessorMode::User,
+        }
+    }
+}
+
+enum ProcessorMode {
+    User = 0b10000,
+    Fiq = 0b10001,
+    Irq = 0b10010,
+    Supervisor = 0b10011,
+    Abort = 0b10111,
+    Undefined = 0b11011,
+    System = 0b11111,
+}
+
 pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registers, mock: bool) {
     let input_path = if mock {
         input_file.path().as_os_str().to_owned()
