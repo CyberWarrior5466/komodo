@@ -24,6 +24,8 @@ fn mock_program(buf: &[u8]) -> Registers {
 
 #[cfg(test)]
 mod tests {
+    use capstone::arch::arm::ArmReg::ARM_REG_APSR;
+
     use super::*;
 
     #[test]
@@ -41,8 +43,7 @@ mod tests {
             mov r7, #0xff00
             mov r8, #0xff000
             mov r9, #0xff000000
-            mov r10, #0xf000000f
-            ",
+            mov r10, #0xf000000f",
         );
         assert_eq!(regs[&RegId(ARM_REG_R0 as u16)], 0);
         assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 1);
@@ -141,8 +142,7 @@ mod tests {
         let regs = mock_program(
             b"
             mvn r0, #0
-            mvn r1, #0xf
-            ",
+            mvn r1, #0xf",
         );
         assert_eq!(regs[&RegId(ARM_REG_R0 as u16)], -1);
         assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], -16);
@@ -157,8 +157,7 @@ mod tests {
             add r2, r0, r1
 
             mvn r3, #0 // -1
-            add r4, r3, r3
-            ",
+            add r4, r3, r3",
         );
         assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 3);
         assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 4);
@@ -186,20 +185,116 @@ mod tests {
         assert_eq!(regs[ARM_REG_R4 as u16], -1);
     }
 
-    // #[test]
-    // fn test_mul() {
-    //     let regs = mock_program(
-    //         b"
-    //         mov r0, #2
-    //         mul r1, r0, #3
-    //         mul r2, r0, r0
+    #[test]
+    fn test_cmp_1() {
+        let regs = mock_program(
+            b"
+            mov r0, #0
+            cmp r0, #0",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x60000010);
+    }
 
-    //         // some_large_num * some_large_num = overflows
-    //         ",
-    //     );
-    //     assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 6);
-    //     assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 4);
+    #[test]
+    fn test_cmp_2() {
+        let regs = mock_program(
+            b"
+            mov r0, #0
+            cmp r0, #1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x80000010u32 as i32);
+    }
 
-    //     assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], -1);
-    // }
+    #[test]
+    fn test_cmp_3() {
+        let regs = mock_program(
+            b"
+                mov r0, #1
+                cmp r0, #0x80000000",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x90000010u32 as i32);
+    }
+
+    #[test]
+    fn test_cmp_4() {
+        let regs = mock_program(
+            b"
+                mov r0, #0x80000000
+                cmp r0, #1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x30000010);
+    }
+
+    #[test]
+    fn test_cmp_5() {
+        let regs = mock_program(
+            b"
+                mov r0, #1
+                mov r1, #-2
+                cmp r0, r1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x10);
+    }
+
+    #[test]
+    fn test_cmp_6() {
+        let regs = mock_program(
+            b"
+                mov r0, #2
+                cmp r0, #1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x20000010);
+    }
+
+    #[test]
+    fn test_cmn_1() {
+        let regs = mock_program(
+            b"
+                mov r0, #0
+                cmn r0, #0",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x40000010);
+    }
+
+    #[test]
+    fn test_cmn_2() {
+        let regs = mock_program(
+            b"
+                mov r0, #0
+                cmn r0, #1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x10);
+    }
+
+    #[test]
+    fn test_cmn_3() {
+        let regs = mock_program(
+            b"
+                mov r0, #0
+                mov r1, #-1
+                cmn r0, r1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x80000010u32 as i32);
+    }
+
+    #[test]
+    fn test_cmn_4() {
+        let regs = mock_program(
+            b"
+                mov r0, #0x7fffffff
+                cmn r0, #1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x90000010u32 as i32);
+    }
+
+    #[test]
+    fn test_cmn_5() {
+        let regs = mock_program(
+            b"
+                mov r0, #0x80000000
+                mov r1, #-1
+                cmn r0, r1",
+        );
+        assert_eq!(regs[ARM_REG_APSR as u16], 0x30000010u32 as i32);
+    }
 }
