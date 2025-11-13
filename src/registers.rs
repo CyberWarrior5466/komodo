@@ -72,7 +72,7 @@ impl Debug for Registers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{R0: {}, R1: {}, R2: {}, R3: {}, R4: {}, R5: {}, R6: {}, R7: {}, R8: {}, R9: {}, R10: {}, R11: {}, R12: {}, R13: {}, R14: {}, R15: {}}}",
+            "{{R0: {}, R1: {}, R2: {}, R3: {}, R4: {}, R5: {}, R6: {}, R7: {}, R8: {}, R9: {}, R10: {}, R11: {}, R12: {}, R13: {}, R14: {}, R15: {}, APSR: 0x{:x}}}",
             self.regs[0],
             self.regs[1],
             self.regs[2],
@@ -89,6 +89,7 @@ impl Debug for Registers {
             self.regs[13],
             self.regs[14],
             self.regs[15],
+            self.regs[16] as u32
         )
     }
 }

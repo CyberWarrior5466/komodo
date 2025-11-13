@@ -2,6 +2,7 @@
 
 TODO:
 
+
 - look into https://github.com/AFLplusplus/LibAFL
 - test windows and mac releases using https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
   - note: windows builds use mingw toolchain
@@ -63,7 +64,6 @@ what is the operand format
 
 forget the `msr` instruction, do it later,
 
-`cmp` instruction
 
 ```
 mov r0, #0
@@ -77,3 +77,33 @@ mrs r1, cpsr
 ```
 
 function that takes in `StatusFlags` and converts it to
+
+---
+
+TODO
+- **ADD cpsr and spsr to debug fmt**
+- add reverse subtract
+
+`cmp` instruction:
+
+- [x] 0, 0
+  zero
+  carry
+
+- [x] 0, 1
+  negative
+
+- [x] 1, 0x80000000
+  negative
+  overflows
+
+- [x] 0x80000000, 1
+  carry
+  overflow
+
+- [x] 1, -2
+
+- [x] 2, 1
+  carry
+
+`cmn` instruction:

@@ -4,15 +4,12 @@ use arch::arm::ArmOperandType::Reg;
 use capstone::Capstone;
 use capstone::Insn;
 use capstone::arch::ArchOperand;
+use capstone::arch::ArchOperand::ArmOperand;
 use capstone::arch::BuildsCapstone;
-use capstone::arch::arm::ArmOperand;
+use capstone::arch::arm;
 use capstone::arch::arm::ArmReg::ARM_REG_APSR;
 use capstone::arch::arm::ArmReg::ARM_REG_SPSR;
-use capstone::arch::arm::ArmShift::Asr;
-use capstone::arch::arm::ArmShift::Invalid;
-use capstone::arch::arm::ArmShift::Lsl;
-use capstone::arch::arm::ArmShift::Lsr;
-use capstone::arch::arm::ArmShift::Ror;
+use capstone::arch::arm::ArmShift;
 use capstone::prelude::*;
 use core::ops;
 use goblin;
@@ -34,26 +31,59 @@ struct StatusFlags {
     processor_mode: ProcessorMode,
 }
 
-impl From<i32> for StatusFlags {
-    fn from(item: i32) -> Self {
+impl StatusFlags {
+    fn new() -> StatusFlags {
         StatusFlags {
-            negative: item & (1 << 31) != 0,
-            zero: item & (1 << 30) != 0,
-            carry: item & (1 << 29) != 0,
-            overflow: item & (1 << 28) != 0,
+            negative: false,
+            zero: false,
+            carry: false,
+            overflow: false,
             processor_mode: ProcessorMode::User,
         }
     }
 }
 
+impl From<i32> for StatusFlags {
+    fn from(n: i32) -> Self {
+        StatusFlags {
+            negative: n & (1 << 31) != 0,
+            zero: n & (1 << 30) != 0,
+            carry: n & (1 << 29) != 0,
+            overflow: n & (1 << 28) != 0,
+            processor_mode: ProcessorMode::User,
+        }
+    }
+}
+
+impl From<StatusFlags> for i32 {
+    fn from(flags: StatusFlags) -> Self {
+        let mut ans = 0i32;
+        if flags.negative {
+            ans |= 1 << 31;
+        }
+        if flags.zero {
+            ans |= 1 << 30;
+        }
+        if flags.carry {
+            ans |= 1 << 29;
+        }
+        if flags.overflow {
+            ans |= 1 << 28;
+        }
+        ans |= flags.processor_mode as i32;
+
+        return ans;
+    }
+}
+
 enum ProcessorMode {
     User = 0b10000,
-    Fiq = 0b10001,
-    Irq = 0b10010,
-    Supervisor = 0b10011,
-    Abort = 0b10111,
-    Undefined = 0b11011,
-    System = 0b11111,
+    // Fiq = 0b10001,
+    // Irq = 0b10010,
+    // Supervisor = 0b10011,
+    // Abort = 0b10111,
+    // Undefined = 0b11011,
+    // System = 0b11111,
 }
 
 pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registers, mock: bool) {
@@ -169,10 +199,18 @@ fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
 
 fn extract_condition(i: &Insn) -> [String; 2] {
     // A4.2, p436 from DDI01001 spec
+    // list of (mneomonic, should_update_cpsr)
     let valid_mnemonics = [
-        "add", "sub", "mul", "and", "bic", "clz", "eor", "or", "mla", "mov", "lsl", "lsr", "asr",
-        "ror", "rrx", "mvn", "cmp", "mrs",
+        "add", "sub", "mul", "and", "eor", "orr", "mla", "mov", "lsl", "lsr", "asr", "ror", "rrx",
+        "mvn", "cmp", "cmn", "mrs",
     ];
+
+    /*
+    conditions that can take in {S}, all except:
+    - mrs
+    - cmp
+    */
+
     // A3.2.1, p112 from DDI01001 spec
     let valid_conditions = [
         "", "eq", "ne", "cs", "hs", "cc", "lo", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt",
@@ -185,6 +223,8 @@ fn extract_condition(i: &Insn) -> [String; 2] {
 
     for m in valid_mnemonics {
         if mnemonic.starts_with(m) {
+            let rest = &mnemonic[m.len()..];
+            if rest.starts_with("s") {}
             let condition = &mnemonic[m.len()..];
             if !valid_conditions.contains(&condition) {
                 panic!("Unkown condition {}", condition);
@@ -194,8 +234,7 @@ fn extract_condition(i: &Insn) -> [String; 2] {
         }
     }
 
-    // panic!("Unrecognised mnemonic {}", mnemonic);
-    return [String::from("cmp"), String::new()];
+    panic!("Unrecognised mnemonic {}", mnemonic);
 }
 
 fn execute(
@@ -224,21 +263,19 @@ fn execute(
         .collect();
 
     match mneomonic.as_str() {
-        "add" | "sub" | "and" | "bic" | "eor" | "orr" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rn_id), Imm(n)] => regs[rd_id] = binary_op(mneomonic)(regs[rn_id], *n),
-            [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
-                regs[rd_id] = binary_op(mneomonic)(regs[rn_id], regs[rm_id])
+        "add" | "sub" | "and" | "bic" | "eor" | "orr" => match ops.as_slice() {
+            [ArmOperand(op1), ArmOperand(op2), shifter_operand] => {
+                if let Reg(rd) = op1.op_type {
+                    if let Reg(rn) = op2.op_type {
+                        regs[&rd] = binary_op(mneomonic)(regs[&rn], value_of(shifter_operand, regs))
+                    }
+                }
             }
             _ => panic!(),
         },
 
         "mul" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rm_id), Reg(rs_id)] => regs[rd_id] = regs[rm_id] * regs[rs_id],
-            _ => panic!(),
-        },
-
-        "clz" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rm_id)] => regs[rd_id] = regs[rm_id].leading_zeros() as i32,
+            [Reg(rd), Reg(rm), Reg(rn)] => regs[rd] = regs[rm] * regs[rn],
             _ => panic!(),
         },
 
@@ -257,14 +294,14 @@ fn execute(
 
         "lsl" | "lsr" | "asr" | "ror" | "rrx" => match ops.as_slice() {
             [
-                ArchOperand::ArmOperand(ArmOperand {
+                ArmOperand(arm::ArmOperand {
                     vector_index: _,
                     subtracted: _,
                     shift: _,
                     op_type: Reg(rd_id),
                     access: _,
                 }),
-                ArchOperand::ArmOperand(ArmOperand {
+                ArmOperand(arm::ArmOperand {
                     vector_index: _,
                     subtracted: _,
                     shift,
@@ -272,12 +309,12 @@ fn execute(
                     access: _,
                 }),
             ] => match shift {
-                Lsl(n) => regs[rd_id] = regs[rn_id] << n,
-                Lsr(n) => regs[rd_id] = regs[rn_id] >> n,
+                ArmShift::Lsl(n) => regs[rd_id] = regs[rn_id] << n,
+                ArmShift::Lsr(n) => regs[rd_id] = regs[rn_id] >> n,
                 // TODO: this is probably wrong
-                Asr(n) => regs[rd_id] = (regs[rn_id] as u32 >> *n as u32) as i32,
-                Ror(n) => regs[rd_id] = regs[rn_id].rotate_right(*n),
-                Invalid => {
+                ArmShift::Asr(n) => regs[rd_id] = (regs[rn_id] as u32 >> *n as u32) as i32,
+                ArmShift::Ror(n) => regs[rd_id] = regs[rn_id].rotate_right(*n),
+                ArmShift::Invalid => {
                     if mneomonic == "rrx" {
                         regs[rd_id] = regs[rn_id].rotate_right(1);
                         // set the 31st bit (MSB) to 0
@@ -322,13 +359,32 @@ fn execute(
             },
         },
 
-        "mvn" => match op_types.as_slice() {
-            [Reg(rd_id), Imm(n)] => regs[rd_id] = !*n,
-            [Reg(rd_id), Reg(rn_id)] => regs[rd_id] = !regs[rn_id],
+        "mvn" => match ops.as_slice() {
+            [ArmOperand(op1), shifter_operand] => {
+                if let Reg(rd) = op1.op_type {
+                    regs[&rd] = !value_of(shifter_operand, regs);
+                }
+            }
             _ => panic!(),
         },
 
-        "cmp" => match op_types.as_slice() {
+        "cmp" => match ops.as_slice() {
+            [ArmOperand(op1), shifter_operand] => {
+                if let Reg(rn) = op1.op_type {
+                    let shifter_operand_value = value_of(shifter_operand, regs);
+
+                    // attempt to subtract with overflow
+                    let (alu_out, should_carry) =
+                        (regs[&rn] as u32).overflowing_sub(shifter_operand_value as u32);
+                    let mut flags = StatusFlags::new();
+                    flags.negative = (alu_out as i32) < 0;
+                    flags.zero = alu_out == 0;
+                    flags.carry = !should_carry;
+                    flags.overflow = regs[&rn].overflowing_sub(shifter_operand_value).1;
+
+                    regs[ARM_REG_APSR as u16] = i32::from(flags);
+                }
+            }
             _ => panic!(),
         },
 
@@ -355,5 +411,37 @@ fn binary_op(mneomonic: String) -> fn(i32, i32) -> i32 {
         "eor" => ops::BitXor::bitxor,
         "orr" => ops::BitOr::bitor,
         _ => panic!(),
+    };
+}
+
+fn value_of(operand: &ArchOperand, registers: &registers::Registers) -> i32 {
+    return match operand {
+        ArmOperand(arm::ArmOperand {
+            vector_index: _,
+            subtracted: _,
+            shift,
+            op_type,
+            access: _,
+        }) => match *op_type {
+            Reg(reg_id) => apply_shift(&registers, registers[&reg_id], shift),
+            Imm(n) => n,
+            ArmOperandType::Invalid | _ => panic!(),
+        },
+        _ => panic!(),
+    };
+}
+
+fn apply_shift(registers: &registers::Registers, num: i32, shift: &ArmShift) -> i32 {
+    return match shift {
+        ArmShift::Lsl(s) => num << s,
+        ArmShift::Lsr(s) => num >> s,
+        ArmShift::Asr(s) => num >> s,
+        ArmShift::Ror(s) => num.rotate_right(*s),
+        ArmShift::LslReg(reg_id) => num << registers[reg_id],
+        ArmShift::LsrReg(reg_id) => num >> registers[reg_id],
+        ArmShift::AsrReg(reg_id) => num >> registers[reg_id],
+        ArmShift::RorReg(reg_id) => num.rotate_right(registers[reg_id] as u32),
+        ArmShift::Rrx(_) | ArmShift::RrxReg(_) => num.rotate_right(1),
+        ArmShift::Invalid => num,
     };
 }
