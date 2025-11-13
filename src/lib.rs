@@ -372,15 +372,37 @@ fn execute(
             [ArmOperand(op1), shifter_operand] => {
                 if let Reg(rn) = op1.op_type {
                     let shifter_operand_value = value_of(shifter_operand, regs);
-
-                    // attempt to subtract with overflow
-                    let (alu_out, should_carry) =
-                        (regs[&rn] as u32).overflowing_sub(shifter_operand_value as u32);
                     let mut flags = StatusFlags::new();
+
+                    let (alu_out, should_overflow) =
+                        regs[&rn].overflowing_sub(shifter_operand_value);
                     flags.negative = (alu_out as i32) < 0;
                     flags.zero = alu_out == 0;
-                    flags.carry = !should_carry;
-                    flags.overflow = regs[&rn].overflowing_sub(shifter_operand_value).1;
+                    flags.carry = !(regs[&rn] as u32)
+                        .overflowing_sub(shifter_operand_value as u32)
+                        .1;
+                    flags.overflow = should_overflow;
+
+                    regs[ARM_REG_APSR as u16] = i32::from(flags);
+                }
+            }
+            _ => panic!(),
+        },
+
+        "cmn" => match ops.as_slice() {
+            [ArmOperand(op1), shifter_operand] => {
+                if let Reg(rn) = op1.op_type {
+                    let shifter_operand_value = value_of(shifter_operand, regs);
+                    let mut flags = StatusFlags::new();
+
+                    let (alu_out, should_overflow) =
+                        regs[&rn].overflowing_add(shifter_operand_value);
+                    flags.negative = alu_out < 0;
+                    flags.zero = alu_out == 0;
+                    flags.carry = (regs[&rn] as u32)
+                        .overflowing_add(shifter_operand_value as u32)
+                        .1;
+                    flags.overflow = should_overflow;
 
                     regs[ARM_REG_APSR as u16] = i32::from(flags);
                 }

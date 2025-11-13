@@ -87,23 +87,44 @@ TODO
 `cmp` instruction:
 
 - [x] 0, 0
+  6
   zero
   carry
 
 - [x] 0, 1
+  4
   negative
 
 - [x] 1, 0x80000000
+  9
   negative
-  overflows
+  overflow
 
 - [x] 0x80000000, 1
+  3
   carry
   overflow
 
 - [x] 1, -2
+  0
 
 - [x] 2, 1
+  2
   carry
 
 `cmn` instruction:
+
+- [x] 0, 0
+  4
+
+- [x] 0, 1
+  0
+
+- [x] 0, -1
+  8
+
+- [x] 0x7fffffff, 1
+  9
+
+- [x] 0x80000000, -1
+  3
