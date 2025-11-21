@@ -81,50 +81,14 @@ function that takes in `StatusFlags` and converts it to
 ---
 
 TODO
-- **ADD cpsr and spsr to debug fmt**
-- add reverse subtract
+- [ ] add reverse subtract
+- [ ] lsr, asr edge cases
+- [ ] `mov lr, #1` does not work, (register pseudonyms)
 
-`cmp` instruction:
+the `tst` instruction, p380 / p142
 
-- [x] 0, 0
-  6
-  zero
-  carry
+there is a problem because the carry flag is set: `tst r0, LSL r1` when r1 is large and maybe carry is set?
 
-- [x] 0, 1
-  4
-  negative
+but the rust `value_of` instruction does not return a boolean weather applying the shift caused an carry.
 
-- [x] 1, 0x80000000
-  9
-  negative
-  overflow
-
-- [x] 0x80000000, 1
-  3
-  carry
-  overflow
-
-- [x] 1, -2
-  0
-
-- [x] 2, 1
-  2
-  carry
-
-`cmn` instruction:
-
-- [x] 0, 0
-  4
-
-- [x] 0, 1
-  0
-
-- [x] 0, -1
-  8
-
-- [x] 0x7fffffff, 1
-  9
-
-- [x] 0x80000000, -1
-  3
+an overflow has occurred if

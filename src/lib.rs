@@ -264,10 +264,10 @@ fn execute(
 
     match mneomonic.as_str() {
         "add" | "sub" | "and" | "bic" | "eor" | "orr" => match ops.as_slice() {
-            [ArmOperand(op1), ArmOperand(op2), shifter_operand] => {
+            [ArmOperand(op1), ArmOperand(op2), ArmOperand(op3)] => {
                 if let Reg(rd) = op1.op_type {
                     if let Reg(rn) = op2.op_type {
-                        regs[&rd] = binary_op(mneomonic)(regs[&rn], value_of(shifter_operand, regs))
+                        regs[&rd] = binary_op(mneomonic)(regs[&rn], value_of(op3, regs))
                     }
                 }
             }
@@ -280,87 +280,38 @@ fn execute(
         },
 
         "mla" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rm_id), Reg(rs_id), Reg(rn_id)] => {
-                regs[rd_id] = regs[rm_id] * regs[rs_id] + regs[rn_id]
+            [Reg(rd), Reg(rm), Reg(rs), Reg(rn)] => regs[rd] = regs[rm] * regs[rs] + regs[rn],
+            _ => panic!(),
+        },
+
+        "lsl" | "lsr" | "asr" | "ror" | "rrx" | "mov" => match ops.as_slice() {
+            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
+                if let Reg(rd) = op1.op_type {
+                    regs[&rd] = value_of(shifter_operand, regs);
+                }
+            }
+            [ArmOperand(op1), ArmOperand(op2), ArmOperand(op3)] => {
+                if let Reg(rd) = op1.op_type {
+                    if let Reg(rm) = op2.op_type {
+                        if let Reg(rn) = op3.op_type {
+                            let shift = match mneomonic.as_str() {
+                                "lsl" => ArmShift::LslReg(rn),
+                                "lsr" => ArmShift::LsrReg(rn),
+                                "asr" => ArmShift::AsrReg(rn),
+                                "ror" => ArmShift::RorReg(rn),
+                                "Rrx" => ArmShift::RrxReg(rn),
+                                _ => panic!(),
+                            };
+                            regs[&rd] = apply_shift(&regs, regs[&rm], &shift);
+                        }
+                    }
+                }
             }
             _ => panic!(),
         },
 
-        "mov" => match op_types.as_slice() {
-            [Reg(rd_id), Imm(n)] => regs[rd_id] = *n,
-            [Reg(rd_id), Reg(rn_id)] => regs[rd_id] = regs[rn_id],
-            _ => panic!(),
-        },
-
-        "lsl" | "lsr" | "asr" | "ror" | "rrx" => match ops.as_slice() {
-            [
-                ArmOperand(arm::ArmOperand {
-                    vector_index: _,
-                    subtracted: _,
-                    shift: _,
-                    op_type: Reg(rd_id),
-                    access: _,
-                }),
-                ArmOperand(arm::ArmOperand {
-                    vector_index: _,
-                    subtracted: _,
-                    shift,
-                    op_type: Reg(rn_id),
-                    access: _,
-                }),
-            ] => match shift {
-                ArmShift::Lsl(n) => regs[rd_id] = regs[rn_id] << n,
-                ArmShift::Lsr(n) => regs[rd_id] = regs[rn_id] >> n,
-                // TODO: this is probably wrong
-                ArmShift::Asr(n) => regs[rd_id] = (regs[rn_id] as u32 >> *n as u32) as i32,
-                ArmShift::Ror(n) => regs[rd_id] = regs[rn_id].rotate_right(*n),
-                ArmShift::Invalid => {
-                    if mneomonic == "rrx" {
-                        regs[rd_id] = regs[rn_id].rotate_right(1);
-                        // set the 31st bit (MSB) to 0
-                        regs[rn_id] &= !(1 << 31);
-                    } else {
-                        panic!("Unrecognised operands for {} instruction", mneomonic)
-                    }
-                }
-                _ => panic!(
-                    "Unrecognised shift {:?} in {} instruction",
-                    shift, mneomonic
-                ),
-            },
-            _ => match mneomonic.as_str() {
-                "lsl" => match op_types.as_slice() {
-                    [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
-                        regs[rd_id] = regs[rn_id] << regs[rm_id]
-                    }
-                    _ => panic!("Unrecognised operands for lsl instruction"),
-                },
-                "lsr" => match op_types.as_slice() {
-                    [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
-                        regs[rd_id] = regs[rn_id] >> regs[rm_id]
-                    }
-                    _ => panic!("Unrecognised operands for lsr instruction"),
-                },
-                "asr" => match op_types.as_slice() {
-                    // TODO: this is probably wrong
-                    [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
-                        regs[rd_id] = (regs[rn_id] as u32 >> regs[rm_id] as u32) as i32
-                    }
-                    _ => panic!("Unrecognised operands for asr instruction"),
-                },
-                "ror" => match op_types.as_slice() {
-                    [Reg(rd_id), Reg(rn_id), Reg(rm_id)] => {
-                        regs[rd_id] = regs[rn_id].rotate_right(regs[rm_id] as u32);
-                    }
-
-                    _ => panic!("Unrecognised operands for ror instruction"),
-                },
-                _ => panic!("Unrecognised shift instruction"),
-            },
-        },
-
         "mvn" => match ops.as_slice() {
-            [ArmOperand(op1), shifter_operand] => {
+            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
                 if let Reg(rd) = op1.op_type {
                     regs[&rd] = !value_of(shifter_operand, regs);
                 }
@@ -369,7 +320,7 @@ fn execute(
         },
 
         "cmp" => match ops.as_slice() {
-            [ArmOperand(op1), shifter_operand] => {
+            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
                 if let Reg(rn) = op1.op_type {
                     let shifter_operand_value = value_of(shifter_operand, regs);
                     let mut flags = StatusFlags::new();
@@ -390,7 +341,7 @@ fn execute(
         },
 
         "cmn" => match ops.as_slice() {
-            [ArmOperand(op1), shifter_operand] => {
+            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
                 if let Reg(rn) = op1.op_type {
                     let shifter_operand_value = value_of(shifter_operand, regs);
                     let mut flags = StatusFlags::new();
@@ -436,20 +387,11 @@ fn binary_op(mneomonic: String) -> fn(i32, i32) -> i32 {
     };
 }
 
-fn value_of(operand: &ArchOperand, registers: &registers::Registers) -> i32 {
-    return match operand {
-        ArmOperand(arm::ArmOperand {
-            vector_index: _,
-            subtracted: _,
-            shift,
-            op_type,
-            access: _,
-        }) => match *op_type {
-            Reg(reg_id) => apply_shift(&registers, registers[&reg_id], shift),
-            Imm(n) => n,
-            ArmOperandType::Invalid | _ => panic!(),
-        },
-        _ => panic!(),
+fn value_of(operand: &arm::ArmOperand, registers: &registers::Registers) -> i32 {
+    return match operand.op_type {
+        Reg(reg_id) => apply_shift(&registers, registers[&reg_id], &operand.shift),
+        Imm(n) => n,
+        ArmOperandType::Invalid | _ => panic!(),
     };
 }
 
