@@ -1,0 +1,3 @@
+- [ ] add in custom icons
+- [ ] Change colour of debug button
+- [ ] add in bottom panel

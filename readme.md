@@ -11,3 +11,16 @@ Install sourceview lib
 ```shell
 sudo apt install libgtksourceview-5-dev
 ```
+
+Install libadwaita demo
+
+```shell
+sudo apt install libadwaita-1-examples
+adwaita-1-demo
+```
+
+Install icon library
+
+```shell
+flatpak install org.gnome.design.IconLibrary
+```

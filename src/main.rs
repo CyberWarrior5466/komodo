@@ -1,11 +1,8 @@
 use gtk::{gio, glib, prelude::*};
-use hover::provider::CustomHoverProvider;
 use sourceview5::prelude::*;
 
-mod hover;
-
 fn main() {
-    let application = gtk::Application::new(
+    let application = adw::Application::new(
         Some("com.github.bilelmoussaoui.sourceview5-example"),
         Default::default(),
     );
@@ -14,15 +11,22 @@ fn main() {
     application.run();
 }
 
-fn build_ui(application: &gtk::Application) {
+fn build_ui(application: &adw::Application) {
     let window = gtk::ApplicationWindow::new(application);
 
     window.set_title(Some("SourceView5 + Rust"));
     window.set_default_size(500, 500);
 
     let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let button1 = gtk::Button::builder().label("click me").build();
-    container.append(&button1);
+    let button_container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    button_container.add_css_class("linked");
+    container.append(&button_container);
+
+    let button1 = gtk::Button::builder().label("click me 1").build();
+    let button2 = gtk::Button::builder().label("click me 2").build();
+    button2.set_property("icon-name", "bug-symbolic");
+    button_container.append(&button1);
+    button_container.append(&button2);
 
     let buffer = sourceview5::Buffer::new(None);
     buffer.set_highlight_syntax(true);
