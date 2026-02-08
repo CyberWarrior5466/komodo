@@ -1,3 +1,16 @@
+# Todo
+
+- [x] add in custom icons
+- [x] cannot show both icon and a label
+- [ ] Change colour of debug button
+- [ ] make source view more default
+- [ ] move `window` to the end of the function
+- [ ] add `ctrl+q` to quit shortcut
+- [ ] add play icon
+- [ ] add in bottom panel
+
+---
+
 See [GUI development with Rust and GTK 4](https://gtk-rs.org/gtk4-rs/stable/latest/book/) book
 
 Install gtk libraries
@@ -23,4 +36,10 @@ Install icon library
 
 ```shell
 flatpak install org.gnome.design.IconLibrary
+```
+
+also may need to install libxml
+
+```shell
+sudo apt install libxml2-utils
 ```

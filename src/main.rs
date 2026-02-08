@@ -1,43 +1,83 @@
-use gtk::{gio, glib, prelude::*};
+use gtk::CssProvider;
+use gtk::IconTheme;
+use gtk::Orientation;
+use gtk::gdk::Display;
+use gtk::gio;
+use gtk::glib;
+use gtk::prelude::*;
 use sourceview5::prelude::*;
 
-fn main() {
-    let application = adw::Application::new(
-        Some("com.github.bilelmoussaoui.sourceview5-example"),
-        Default::default(),
-    );
-    application.connect_activate(build_ui);
+fn main() -> glib::ExitCode {
+    let app = adw::Application::new(Some("com.my-gtk-app"), Default::default());
 
-    application.run();
+    app.connect_startup(|_| load_css());
+    app.connect_activate(build_ui);
+
+    app.run()
 }
 
-fn build_ui(application: &adw::Application) {
-    let window = gtk::ApplicationWindow::new(application);
+fn load_css() {
+    // Load the CSS file and add it to the provider
+    let provider = CssProvider::new();
+    provider.load_from_string(
+        // Orange 2
+        "
+        .orange { color: #ffa348; }
+        ",
+    );
+
+    // Add the provider to the default screen
+    gtk::style_context_add_provider_for_display(
+        &Display::default().expect("Could not connect to a display."),
+        &provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+}
+
+fn build_ui(app: &adw::Application) {
+    gio::resources_register_include!("compiled.gresource").unwrap();
+
+    let window = gtk::ApplicationWindow::new(app);
 
     window.set_title(Some("SourceView5 + Rust"));
     window.set_default_size(500, 500);
 
-    let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let display = gtk::gdk::Display::default().unwrap();
+    let icon_theme = IconTheme::for_display(&display);
+    icon_theme.add_resource_path("/com/my-gtk-app");
+
+    let container = gtk::Box::new(gtk::Orientation::Vertical, 16);
+
     let button_container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     button_container.add_css_class("linked");
     container.append(&button_container);
 
-    let button1 = gtk::Button::builder().label("click me 1").build();
-    let button2 = gtk::Button::builder().label("click me 2").build();
-    button2.set_property("icon-name", "bug-symbolic");
+    let button1 = gtk::Button::builder()
+        .icon_name("execute-from-symbolic")
+        .build();
+
+    let button2_box = gtk::Box::new(Orientation::Horizontal, 8);
+    let button2_icon = gtk::Image::from_icon_name("bug-symbolic");
+    let button2_label = gtk::Label::new(Some("Debug"));
+    button2_icon.add_css_class("orange");
+    button2_box.append(&button2_icon);
+    button2_box.append(&button2_label);
+    let button2 = gtk::Button::new();
+    button2.set_child(Some(&button2_box));
+
     button_container.append(&button1);
     button_container.append(&button2);
 
     let buffer = sourceview5::Buffer::new(None);
     buffer.set_highlight_syntax(true);
-    if let Some(ref language) = sourceview5::LanguageManager::new().language("rust") {
+    if let Some(ref language) = sourceview5::LanguageManager::new().language("markdown") {
         buffer.set_language(Some(language));
     }
     if let Some(ref scheme) = sourceview5::StyleSchemeManager::new().scheme("solarized-light") {
         buffer.set_style_scheme(Some(scheme));
     }
 
-    let file = gio::File::for_path("buffer.rs");
+    let file = gio::File::for_path("readme.md");
     let file = sourceview5::File::builder().location(&file).build();
     let loader = sourceview5::FileLoader::new(&buffer, &file);
     loader.load_async_with_callback(

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<gresources>
+  <gresource prefix="/com/my-gtk-app">
+    <file>bug-symbolic.svg</file>
+    <file>execute-from-symbolic.svg</file>
+  </gresource>
+</gresources>
