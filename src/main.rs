@@ -1,3 +1,4 @@
+use gtk::Align;
 use gtk::CssProvider;
 use gtk::IconTheme;
 use gtk::Orientation;
@@ -46,10 +47,11 @@ fn build_ui(app: &adw::Application) {
     let icon_theme = IconTheme::for_display(&display);
     icon_theme.add_resource_path("/com/my-gtk-app");
 
-    let container = gtk::Box::new(gtk::Orientation::Vertical, 16);
+    let container = gtk::Box::new(Orientation::Vertical, 0);
 
-    let button_container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    let button_container = gtk::Box::new(Orientation::Horizontal, 0);
     button_container.add_css_class("linked");
+    button_container.set_halign(Align::Center);
     container.append(&button_container);
 
     let button1 = gtk::Button::builder()
@@ -73,7 +75,7 @@ fn build_ui(app: &adw::Application) {
     if let Some(ref language) = sourceview5::LanguageManager::new().language("markdown") {
         buffer.set_language(Some(language));
     }
-    if let Some(ref scheme) = sourceview5::StyleSchemeManager::new().scheme("solarized-light") {
+    if let Some(ref scheme) = sourceview5::StyleSchemeManager::new().scheme("Adwaita-dark") {
         buffer.set_style_scheme(Some(scheme));
     }
 
@@ -96,7 +98,6 @@ fn build_ui(app: &adw::Application) {
 
     let view = sourceview5::View::with_buffer(&buffer);
     view.set_monospace(true);
-    view.set_background_pattern(sourceview5::BackgroundPatternType::Grid);
     view.set_show_line_numbers(true);
     view.set_highlight_current_line(true);
     view.set_tab_width(4);
@@ -108,7 +109,21 @@ fn build_ui(app: &adw::Application) {
         .build();
 
     scroll.set_child(Some(&view));
-    container.append(&scroll);
+
+    let bottom_sheet = adw::BottomSheet::new();
+    bottom_sheet.set_modal(false);
+    bottom_sheet.set_vexpand(true);
+    bottom_sheet.set_content(Some(&scroll));
+    let sheet_tbv = adw::ToolbarView::new();
+    bottom_sheet.set_sheet(Some(&sheet_tbv));
+    let sheet_sp = adw::StatusPage::builder()
+        .icon_name("go-down-symbolic")
+        .build();
+    sheet_tbv.set_content(Some(&sheet_sp));
+    let hi = gtk::Label::new(Some("hi"));
+    bottom_sheet.set_bottom_bar(Some(&hi));
+
+    container.append(&bottom_sheet);
 
     window.set_child(Some(&container));
     window.present();
