@@ -2,6 +2,7 @@
 <gresources>
   <gresource prefix="/com/my-gtk-app">
     <file>bug-symbolic.svg</file>
+    <file>dock-bottom-symbolic.svg</file>
     <file>execute-from-symbolic.svg</file>
   </gresource>
 </gresources>

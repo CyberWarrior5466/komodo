@@ -14,6 +14,12 @@ fn main() -> glib::ExitCode {
     app.connect_startup(|_| load_css());
     app.connect_activate(build_ui);
 
+    let quit_action = gio::ActionEntry::builder("quit")
+        .activate(move |app: &adw::Application, _, _| app.quit())
+        .build();
+    app.add_action_entries([quit_action]);
+    app.set_accels_for_action("app.quit", &["<control>q"]);
+
     app.run()
 }
 
@@ -72,14 +78,14 @@ fn build_ui(app: &adw::Application) {
 
     let buffer = sourceview5::Buffer::new(None);
     buffer.set_highlight_syntax(true);
-    if let Some(ref language) = sourceview5::LanguageManager::new().language("markdown") {
-        buffer.set_language(Some(language));
-    }
+    // if let Some(ref language) = sourceview5::LanguageManager::new().language("") {
+    //     buffer.set_language(Some(language));
+    // }
     if let Some(ref scheme) = sourceview5::StyleSchemeManager::new().scheme("Adwaita-dark") {
         buffer.set_style_scheme(Some(scheme));
     }
 
-    let file = gio::File::for_path("readme.md");
+    let file = gio::File::for_path("file.asm");
     let file = sourceview5::File::builder().location(&file).build();
     let loader = sourceview5::FileLoader::new(&buffer, &file);
     loader.load_async_with_callback(
@@ -120,10 +126,16 @@ fn build_ui(app: &adw::Application) {
         .icon_name("go-down-symbolic")
         .build();
     sheet_tbv.set_content(Some(&sheet_sp));
-    let hi = gtk::Label::new(Some("hi"));
-    bottom_sheet.set_bottom_bar(Some(&hi));
+    // let terminal_icon = gtk::Image::from_icon_name("dock-bottom-symbolic");
+    // bottom_sheet.set_bottom_bar(Some(&terminal_icon));
 
     container.append(&bottom_sheet);
+
+    let temp_button = gtk::Button::builder()
+        .icon_name("dock-bottom-symbolic")
+        .build();
+    temp_button.connect_clicked(move |_| bottom_sheet.set_open(!bottom_sheet.is_open()));
+    container.append(&temp_button);
 
     window.set_child(Some(&container));
     window.present();
