@@ -6,7 +6,6 @@ use gtk::gdk::Display;
 use gtk::gio;
 use gtk::glib;
 use gtk::prelude::*;
-use sourceview5::prelude::*;
 
 fn main() -> glib::ExitCode {
     let app = adw::Application::new(Some("com.my-gtk-app"), Default::default());
@@ -49,56 +48,112 @@ fn build_ui(app: &adw::Application) {
 
     let container = gtk::Box::new(Orientation::Vertical, 0);
 
-    container.append(&create_button_container());
-    container.append(&create_panes());
-
     let window = gtk::ApplicationWindow::builder()
         .application(app)
         .default_width(600)
         .default_height(400)
         .build();
 
+    container.append(&create_button_container());
+    container.append(&create_panes(&window));
+    container.append(&create_gutter());
+
+    // window.add_action_entries([action_toggle_side, action_toggle_bottom]);
+
     window.set_child(Some(&container));
     window.present();
 }
 
 fn create_button_container() -> gtk::Box {
-    let button_container = gtk::Box::new(Orientation::Horizontal, 0);
-    button_container.add_css_class("linked");
-    button_container.set_halign(Align::Center);
+    let container = gtk::Box::builder()
+        .orientation(Orientation::Horizontal)
+        .css_classes(["linked"])
+        .halign(Align::Center)
+        .build();
 
-    let button1 = gtk::Button::builder()
+    let execute_btn = gtk::Button::builder()
         .icon_name("execute-from-symbolic")
         .build();
 
-    let button2_box = gtk::Box::new(Orientation::Horizontal, 8);
-    let button2_icon = gtk::Image::from_icon_name("bug-symbolic");
-    let button2_label = gtk::Label::new(Some("Debug"));
-    button2_icon.add_css_class("orange");
-    button2_box.append(&button2_icon);
-    button2_box.append(&button2_label);
-    let button2 = gtk::Button::new();
-    button2.set_child(Some(&button2_box));
+    let debug_btn_box = gtk::Box::new(Orientation::Horizontal, 8);
 
-    button_container.append(&button1);
-    button_container.append(&button2);
+    let debug_btn_icon = gtk::Image::builder()
+        .icon_name("bug-symbolic")
+        .css_classes(["orange"])
+        .build();
 
-    return button_container;
+    let debug_btn_label = gtk::Label::new(Some("Debug"));
+    debug_btn_box.append(&debug_btn_icon);
+    debug_btn_box.append(&debug_btn_label);
+    let debug_btn = gtk::Button::builder().child(&debug_btn_box).build();
+
+    container.append(&execute_btn);
+    container.append(&debug_btn);
+
+    return container;
 }
 
-fn create_panes() -> gtk::Paned {
-    let side_main_pane = gtk::Paned::new(Orientation::Horizontal);
-    side_main_pane.set_vexpand(true);
-    let side_pane = gtk::Label::new(Some("Sidebar Content"));
-    side_main_pane.set_start_child(Some(&side_pane));
+fn create_panes(window: &gtk::ApplicationWindow) -> gtk::Paned {
+    let bottom = gtk::Label::new(Some("Bottom"));
+    let bottom_pane = gtk::Paned::builder()
+        .orientation(Orientation::Vertical)
+        .start_child(&gtk::Label::new(Some("Main")))
+        .end_child(&bottom)
+        .build();
 
-    let main_bottom_pane = gtk::Paned::new(Orientation::Vertical);
-    side_main_pane.set_end_child(Some(&main_bottom_pane));
+    let sidebar = gtk::Label::new(Some("Sidebar"));
+    let side_pane = gtk::Paned::builder()
+        .vexpand(true)
+        .start_child(&sidebar)
+        .end_child(&bottom_pane)
+        .build();
 
-    let content = gtk::Label::new(Some("Main Content Area"));
-    let bottom_pane = gtk::Label::new(Some("Bottom pane"));
-    main_bottom_pane.set_start_child(Some(&content));
-    main_bottom_pane.set_end_child(Some(&bottom_pane));
+    let action_toggle_side = gio::ActionEntry::builder("toggle-side")
+        .activate(move |_: &gtk::ApplicationWindow, _, _| {
+            sidebar.set_visible(!sidebar.is_visible())
+        })
+        .build();
 
-    return side_main_pane;
+    let action_toggle_bottom = gio::ActionEntry::builder("toggle-bottom")
+        .activate(move |_: &gtk::ApplicationWindow, _, _| {
+            bottom.set_visible(!bottom.is_visible());
+        })
+        .build();
+
+    window.add_action_entries([action_toggle_side, action_toggle_bottom]);
+
+    return side_pane;
+}
+
+fn create_gutter() -> gtk::HeaderBar {
+    let header = gtk::HeaderBar::builder()
+        .title_widget(&gtk::Label::new(Some("")))
+        .show_title_buttons(false)
+        .build();
+
+    let toggle_left = gtk::Button::builder()
+        .icon_name("dock-left-symbolic")
+        .halign(Align::Start)
+        .build();
+    let toggle_bottom = gtk::Button::builder()
+        .icon_name("dock-bottom-symbolic")
+        .halign(Align::End)
+        .build();
+
+    toggle_left.connect_clicked(move |button| {
+        button
+            .activate_action("win.toggle-side", None)
+            .expect("The action does not exist.");
+    });
+
+    toggle_bottom.connect_clicked(move |button| {
+        button
+            .activate_action("win.toggle-bottom", None)
+            .expect("The action does not exist.");
+    });
+
+    header.pack_start(&toggle_left);
+    header.pack_end(&toggle_bottom);
+
+    return header;
 }

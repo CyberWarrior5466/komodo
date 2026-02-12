@@ -1,7 +1,10 @@
 # Todo
 
+learn how signals work from gtk4-rs book,
+
+- [x] add toggle sidebar, bottom-bar buttons
+- [ ] animate toggle sidebar, bottom-bar buttons
 - [ ] copy over starting code from ~/Projects/project
-- [ ] add toggle sidebar, bottom-bar buttons
 - [ ] add zoom shortcuts
 - [ ] make source view style scheme light/dark system adaptive
 - [ ] move `button-container` to header; next to minimise,maximise,exit
