@@ -50,21 +50,7 @@ fn build_ui(app: &adw::Application) {
     let container = gtk::Box::new(Orientation::Vertical, 0);
 
     container.append(&create_button_container());
-
-    let side_main_pane = gtk::Paned::new(Orientation::Horizontal);
-    side_main_pane.set_vexpand(true);
-    let side_pane = gtk::Label::new(Some("Sidebar Content"));
-    side_main_pane.set_start_child(Some(&side_pane));
-
-    let main_bottom_pane = gtk::Paned::new(Orientation::Vertical);
-    side_main_pane.set_end_child(Some(&main_bottom_pane));
-
-    let content = gtk::Label::new(Some("Main Content Area"));
-    let bottom_pane = gtk::Label::new(Some("Bottom pane"));
-    main_bottom_pane.set_start_child(Some(&content));
-    main_bottom_pane.set_end_child(Some(&bottom_pane));
-
-    container.append(&side_main_pane);
+    container.append(&create_panes());
 
     let window = gtk::ApplicationWindow::builder()
         .application(app)
@@ -98,4 +84,21 @@ fn create_button_container() -> gtk::Box {
     button_container.append(&button2);
 
     return button_container;
+}
+
+fn create_panes() -> gtk::Paned {
+    let side_main_pane = gtk::Paned::new(Orientation::Horizontal);
+    side_main_pane.set_vexpand(true);
+    let side_pane = gtk::Label::new(Some("Sidebar Content"));
+    side_main_pane.set_start_child(Some(&side_pane));
+
+    let main_bottom_pane = gtk::Paned::new(Orientation::Vertical);
+    side_main_pane.set_end_child(Some(&main_bottom_pane));
+
+    let content = gtk::Label::new(Some("Main Content Area"));
+    let bottom_pane = gtk::Label::new(Some("Bottom pane"));
+    main_bottom_pane.set_start_child(Some(&content));
+    main_bottom_pane.set_end_child(Some(&bottom_pane));
+
+    return side_main_pane;
 }
