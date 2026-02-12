@@ -1,15 +1,9 @@
 # Todo
 
-- [x] add in custom icons
-- [x] cannot show both icon and a label
-- [x] Change colour of debug button
-- [x] make source view more default
-- [x] add play icon
-- [x] add in bottom sheet
+- [ ] copy over starting code from ~/Projects/project
+- [ ] add toggle sidebar, bottom-bar buttons
 - [ ] add zoom shortcuts
 - [ ] make source view style scheme light/dark system adaptive
-- [ ] move `window` to the end of the function
-- [ ] add `ctrl+q` to quit shortcut
 - [ ] move `button-container` to header; next to minimise,maximise,exit
 
 ---
