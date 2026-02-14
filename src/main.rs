@@ -1,5 +1,6 @@
 use std::cell::Cell;
 
+use adw::prelude::AdwApplicationWindowExt;
 use adw::prelude::AnimationExt;
 use gtk::Align;
 use gtk::CssProvider;
@@ -49,19 +50,28 @@ fn build_ui(app: &adw::Application) {
     let icon_theme = IconTheme::for_display(&display);
     icon_theme.add_resource_path("/com/my-gtk-app");
 
-    let container = gtk::Box::new(Orientation::Vertical, 0);
+    let container = gtk::Box::builder()
+        .orientation(Orientation::Vertical)
+        .vexpand(true)
+        .build();
 
-    let window = gtk::ApplicationWindow::builder()
+    let toolbar = adw::ToolbarView::new();
+    let header = adw::HeaderBar::builder()
+        .title_widget(&create_button_container())
+        .build();
+    toolbar.add_top_bar(&header);
+    toolbar.set_content(Some(&container));
+
+    let window = adw::ApplicationWindow::builder()
         .application(app)
         .default_width(600)
         .default_height(400)
         .build();
 
-    container.append(&create_button_container());
     container.append(&create_panes(&window));
-    container.append(&create_gutter());
+    toolbar.add_bottom_bar(&create_gutter());
 
-    window.set_child(Some(&container));
+    window.set_content(Some(&toolbar));
     window.present();
 }
 
@@ -94,7 +104,7 @@ fn create_button_container() -> gtk::Box {
     return container;
 }
 
-fn create_panes(window: &gtk::ApplicationWindow) -> gtk::Paned {
+fn create_panes(window: &adw::ApplicationWindow) -> gtk::Paned {
     let bottom_pane = gtk::Paned::builder()
         .orientation(Orientation::Vertical)
         .wide_handle(true)
@@ -131,7 +141,7 @@ fn create_panes(window: &gtk::ApplicationWindow) -> gtk::Paned {
         .activate(glib::clone!(
             #[strong]
             side_pane,
-            move |_: &gtk::ApplicationWindow, _, _| {
+            move |_: &adw::ApplicationWindow, _, _| {
                 let pos = side_pane.position();
 
                 if side_initial.get() == 0 {
@@ -159,7 +169,7 @@ fn create_panes(window: &gtk::ApplicationWindow) -> gtk::Paned {
     let bottom_initial = Cell::new(0);
     let bottom_last_known = Cell::new(0);
     let action_toggle_bottom = gio::ActionEntry::builder("toggle-bottom")
-        .activate(move |_: &gtk::ApplicationWindow, _, _| {
+        .activate(move |_: &adw::ApplicationWindow, _, _| {
             let pos = bottom_pane.position();
 
             if bottom_initial.get() == 0 {
