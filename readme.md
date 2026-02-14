@@ -1,13 +1,29 @@
 # Todo
 
-learn how signals work from gtk4-rs book,
-
 - [x] add toggle sidebar, bottom-bar buttons
 - [ ] animate toggle sidebar, bottom-bar buttons
 - [ ] copy over starting code from ~/Projects/project
 - [ ] add zoom shortcuts
 - [ ] make source view style scheme light/dark system adaptive
 - [ ] move `button-container` to header; next to minimise,maximise,exit
+
+---
+
+Animations
+
+```rust
+let button_container = create_button_container();
+let button = gtk::Button::with_label("grow");
+let anim = adw::TimedAnimation::new(
+    &button,
+    20.0,
+    100.0,
+    250,
+    adw::PropertyAnimationTarget::new(&button, "width_request"),
+);
+button_container.append(&button);
+button.connect_clicked(move |_| anim.play());
+```
 
 ---
 
