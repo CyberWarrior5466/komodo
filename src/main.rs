@@ -23,8 +23,12 @@ fn main() -> glib::ExitCode {
     app.add_action_entries([quit_action]);
     app.set_accels_for_action("app.quit", &["<control>q"]);
 
+    app.set_accels_for_action("win.toggle-side", &["<control>b"]);
+    app.set_accels_for_action("win.toggle-bottom", &["<control>j"]);
+
     app.run()
 }
+
 fn load_css() {
     // Load the CSS file and add it to the provider
     let provider = CssProvider::new();
@@ -50,6 +54,12 @@ fn build_ui(app: &adw::Application) {
     let icon_theme = IconTheme::for_display(&display);
     icon_theme.add_resource_path("/com/my-gtk-app");
 
+    let window = adw::ApplicationWindow::builder()
+        .application(app)
+        .default_width(800)
+        .default_height(600)
+        .build();
+
     let container = gtk::Box::builder()
         .orientation(Orientation::Vertical)
         .vexpand(true)
@@ -62,14 +72,9 @@ fn build_ui(app: &adw::Application) {
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&container));
 
-    let window = adw::ApplicationWindow::builder()
-        .application(app)
-        .default_width(600)
-        .default_height(400)
-        .build();
-
-    container.append(&create_panes(&window));
-    toolbar.add_bottom_bar(&create_gutter());
+    let main_section = create_main_section();
+    container.append(&create_panes(&window, &main_section));
+    toolbar.add_bottom_bar(&create_bottom_bar());
 
     window.set_content(Some(&toolbar));
     window.present();
@@ -104,13 +109,28 @@ fn create_button_container() -> gtk::Box {
     return container;
 }
 
-fn create_panes(window: &adw::ApplicationWindow) -> gtk::Paned {
+fn create_panes(
+    window: &adw::ApplicationWindow,
+    main_section: &impl IsA<gtk::Widget>,
+) -> gtk::Paned {
     let bottom_pane = gtk::Paned::builder()
         .orientation(Orientation::Vertical)
         .wide_handle(true)
-        .start_child(&gtk::Label::new(Some("Main")))
+        .start_child(main_section)
         .end_child(&gtk::Label::new(Some("Bottom")))
         .build();
+
+    let paned_weak = bottom_pane.downgrade();
+
+    bottom_pane.connect_map(move |_| {
+        let paned_weak = paned_weak.clone();
+
+        glib::idle_add_local(move || {
+            let upgrade = paned_weak.upgrade().unwrap();
+            upgrade.set_position(upgrade.max_position() / 2);
+            return glib::ControlFlow::Break;
+        });
+    });
 
     let side_pane = gtk::Paned::builder()
         .wide_handle(true)
@@ -200,7 +220,32 @@ fn create_panes(window: &adw::ApplicationWindow) -> gtk::Paned {
     return side_pane;
 }
 
-fn create_gutter() -> gtk::HeaderBar {
+fn create_main_section() -> gtk::ScrolledWindow {
+    let style_scheme = sourceview5::StyleSchemeManager::new()
+        .scheme("Adwaita-dark")
+        .expect("style scheme Adwaita-dark exists");
+
+    let buffer = sourceview5::Buffer::builder()
+        .style_scheme(&style_scheme)
+        .build();
+
+    let view = sourceview5::View::builder()
+        .monospace(true)
+        .show_line_numbers(true)
+        .highlight_current_line(true)
+        .buffer(&buffer)
+        .build();
+
+    let scroll = gtk::ScrolledWindow::builder()
+        .vscrollbar_policy(gtk::PolicyType::External)
+        .vexpand(true)
+        .child(&view)
+        .build();
+
+    return scroll;
+}
+
+fn create_bottom_bar() -> gtk::HeaderBar {
     let header = gtk::HeaderBar::builder()
         .title_widget(&gtk::Label::new(Some("")))
         .show_title_buttons(false)
@@ -208,11 +253,9 @@ fn create_gutter() -> gtk::HeaderBar {
 
     let toggle_left = gtk::Button::builder()
         .icon_name("dock-left-symbolic")
-        .halign(Align::Start)
         .build();
     let toggle_bottom = gtk::Button::builder()
         .icon_name("dock-bottom-symbolic")
-        .halign(Align::End)
         .build();
 
     toggle_left.connect_clicked(move |button| {

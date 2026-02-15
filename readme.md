@@ -1,5 +1,6 @@
 # Todo
 
+- [ ] add ctrl-j shortcut to show/hide bottom panel
 - [ ] copy over starting code from ~/Projects/project
 - [ ] add zoom shortcuts
 - [ ] make source view style scheme light/dark system adaptive
