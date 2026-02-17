@@ -1,15 +1,3 @@
-use capstone::RegId;
-use capstone::arch::arm::ArmReg::ARM_REG_R0;
-use capstone::arch::arm::ArmReg::ARM_REG_R1;
-use capstone::arch::arm::ArmReg::ARM_REG_R2;
-use capstone::arch::arm::ArmReg::ARM_REG_R3;
-use capstone::arch::arm::ArmReg::ARM_REG_R4;
-use capstone::arch::arm::ArmReg::ARM_REG_R5;
-use capstone::arch::arm::ArmReg::ARM_REG_R6;
-use capstone::arch::arm::ArmReg::ARM_REG_R7;
-use capstone::arch::arm::ArmReg::ARM_REG_R8;
-use capstone::arch::arm::ArmReg::ARM_REG_R9;
-use capstone::arch::arm::ArmReg::ARM_REG_R10;
 use komodo::registers::Registers;
 use std::io::Write;
 use tempfile::{self, NamedTempFile};
@@ -24,8 +12,6 @@ fn mock_program(buf: &[u8]) -> Registers {
 
 #[cfg(test)]
 mod tests {
-    use capstone::arch::arm::ArmReg::ARM_REG_APSR;
-
     use super::*;
 
     #[test]
@@ -45,17 +31,17 @@ mod tests {
             mov r9, #0xff000000
             mov r10, #0xf000000f",
         );
-        assert_eq!(regs[&RegId(ARM_REG_R0 as u16)], 0);
-        assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 1);
-        assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 'a' as i32);
-        assert_eq!(regs[&RegId(ARM_REG_R3 as u16)], 0b1010);
-        assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], 0xff);
-        assert_eq!(regs[&RegId(ARM_REG_R5 as u16)], 0x104);
-        assert_eq!(regs[&RegId(ARM_REG_R6 as u16)], 0xff0);
-        assert_eq!(regs[&RegId(ARM_REG_R7 as u16)], 0xff00);
-        assert_eq!(regs[&RegId(ARM_REG_R8 as u16)], 0xff000);
-        assert_eq!(regs[&RegId(ARM_REG_R9 as u16)], 0xff000000_u32 as i32);
-        assert_eq!(regs[&RegId(ARM_REG_R10 as u16)], 0xf000000f_u32 as i32);
+        assert_eq!(regs.r0, 0);
+        assert_eq!(regs.r1, 1);
+        assert_eq!(regs.r2, 'a' as i32);
+        assert_eq!(regs.r3, 0b1010);
+        assert_eq!(regs.r4, 0xff);
+        assert_eq!(regs.r5, 0x104);
+        assert_eq!(regs.r6, 0xff0);
+        assert_eq!(regs.r7, 0xff00);
+        assert_eq!(regs.r8, 0xff000);
+        assert_eq!(regs.r9, 0xff000000_u32 as i32);
+        assert_eq!(regs.r10, 0xf000000f_u32 as i32);
     }
 
     #[test]
@@ -81,22 +67,26 @@ mod tests {
         ",
         );
 
-        assert_eq!(regs[&RegId(ARM_REG_R0 as u16)], 4);
-        // assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 1);
+        assert_eq!(regs.r0, 4);
+        assert_eq!(regs.r1, 1);
 
-        // assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 16);
-        // assert_eq!(regs[&RegId(ARM_REG_R3 as u16)], 8);
+        assert_eq!(regs.r2, 16);
+        assert_eq!(regs.r3, 8);
 
-        // assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], 1);
-        // assert_eq!(regs[&RegId(ARM_REG_R5 as u16)], 2);
+        assert_eq!(regs.r4, 1);
+        assert_eq!(regs.r5, 2);
 
-        // assert_eq!(regs[&RegId(ARM_REG_R6 as u16)], 1);
-        // assert_eq!(regs[&RegId(ARM_REG_R7 as u16)], 2);
+        assert_eq!(regs.r6, 1);
+        assert_eq!(regs.r7, 2);
 
-        // assert_eq!(regs[&RegId(ARM_REG_R8 as u16)], 1073741824);
-        // assert_eq!(regs[&RegId(ARM_REG_R9 as u16)], -2147483648);
+        assert_eq!(regs.r8, 1073741824);
+        assert_eq!(regs.r9, -2147483648);
 
         // assert_eq!(regs[&RegId(ARM_REG_R10 as u16)], -2147483648);
+        /*
+        incorrect,
+        need to use carry flag as a 33rd bit
+        */
     }
 
     #[test]
@@ -142,8 +132,8 @@ mod tests {
             mvn r0, #0
             mvn r1, #0xf",
         );
-        assert_eq!(regs[&RegId(ARM_REG_R0 as u16)], -1);
-        assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], -16);
+        assert_eq!(regs.r0, -1);
+        assert_eq!(regs.r1, -16);
     }
 
     #[test]
@@ -157,10 +147,10 @@ mod tests {
             mvn r3, #0 // -1
             add r4, r3, r3",
         );
-        assert_eq!(regs[&RegId(ARM_REG_R1 as u16)], 3);
-        assert_eq!(regs[&RegId(ARM_REG_R2 as u16)], 4);
+        assert_eq!(regs.r1, 3);
+        assert_eq!(regs.r2, 4);
 
-        assert_eq!(regs[&RegId(ARM_REG_R4 as u16)], -2);
+        assert_eq!(regs.r4, -2);
     }
 
     #[test]
@@ -177,10 +167,9 @@ mod tests {
             ",
         );
 
-        assert_eq!(regs[ARM_REG_R1 as u16], 2);
-        assert_eq!(regs[ARM_REG_R2 as u16], 1);
-
-        assert_eq!(regs[ARM_REG_R4 as u16], -1);
+        assert_eq!(regs.r1, 2);
+        assert_eq!(regs.r2, 1);
+        assert_eq!(regs.r4, -1);
     }
 
     #[test]
@@ -190,7 +179,7 @@ mod tests {
             mov r0, #0
             cmp r0, #0",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x60000010);
+        assert_eq!(regs.apsr, 0x60000010);
     }
 
     #[test]
@@ -200,7 +189,7 @@ mod tests {
             mov r0, #0
             cmp r0, #1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x80000010u32 as i32);
+        assert_eq!(regs.apsr, 0x80000010u32 as i32);
     }
 
     #[test]
@@ -210,7 +199,7 @@ mod tests {
                 mov r0, #1
                 cmp r0, #0x80000000",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x90000010u32 as i32);
+        assert_eq!(regs.apsr, 0x90000010u32 as i32);
     }
 
     #[test]
@@ -220,7 +209,7 @@ mod tests {
                 mov r0, #0x80000000
                 cmp r0, #1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x30000010);
+        assert_eq!(regs.apsr, 0x30000010);
     }
 
     #[test]
@@ -231,7 +220,7 @@ mod tests {
                 mov r1, #-2
                 cmp r0, r1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x10);
+        assert_eq!(regs.apsr, 0x10);
     }
 
     #[test]
@@ -241,7 +230,7 @@ mod tests {
                 mov r0, #2
                 cmp r0, #1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x20000010);
+        assert_eq!(regs.apsr, 0x20000010);
     }
 
     #[test]
@@ -251,7 +240,7 @@ mod tests {
                 mov r0, #0
                 cmn r0, #0",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x40000010);
+        assert_eq!(regs.apsr, 0x40000010);
     }
 
     #[test]
@@ -261,7 +250,7 @@ mod tests {
                 mov r0, #0
                 cmn r0, #1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x10);
+        assert_eq!(regs.apsr, 0x10);
     }
 
     #[test]
@@ -272,7 +261,7 @@ mod tests {
                 mov r1, #-1
                 cmn r0, r1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x80000010u32 as i32);
+        assert_eq!(regs.apsr, 0x80000010u32 as i32);
     }
 
     #[test]
@@ -282,7 +271,7 @@ mod tests {
                 mov r0, #0x7fffffff
                 cmn r0, #1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x90000010u32 as i32);
+        assert_eq!(regs.apsr, 0x90000010u32 as i32);
     }
 
     #[test]
@@ -293,6 +282,6 @@ mod tests {
                 mov r1, #-1
                 cmn r0, r1",
         );
-        assert_eq!(regs[ARM_REG_APSR as u16], 0x30000010u32 as i32);
+        assert_eq!(regs.apsr, 0x30000010u32 as i32);
     }
 }
