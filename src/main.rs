@@ -36,6 +36,11 @@ fn load_css() {
         // Orange 2
         "
         .orange { color: #ffa348; }
+        .font-12 { font-size: 12px }
+        .no-min-height { min-height: 0px; }
+        listview cell {
+            padding: 1px 8px;
+        }
         ",
     );
 
@@ -73,7 +78,8 @@ fn build_ui(app: &adw::Application) {
     toolbar.set_content(Some(&container));
 
     let main_section = create_main_section();
-    container.append(&create_panes(&window, &main_section));
+    let side_section = create_side_section();
+    container.append(&create_panes(&window, &main_section, &side_section));
     toolbar.add_bottom_bar(&create_bottom_bar());
 
     window.set_content(Some(&toolbar));
@@ -112,6 +118,7 @@ fn create_button_container() -> gtk::Box {
 fn create_panes(
     window: &adw::ApplicationWindow,
     main_section: &impl IsA<gtk::Widget>,
+    side_section: &impl IsA<gtk::Widget>,
 ) -> gtk::Paned {
     let bottom_pane = gtk::Paned::builder()
         .orientation(Orientation::Vertical)
@@ -120,8 +127,15 @@ fn create_panes(
         .end_child(&gtk::Label::new(Some("Bottom")))
         .build();
 
-    let paned_weak = bottom_pane.downgrade();
+    let side_pane = gtk::Paned::builder()
+        .wide_handle(true)
+        .vexpand(true)
+        .start_child(side_section)
+        .end_child(&bottom_pane)
+        .build();
 
+    // source: https://gemini.google.com/share/c9f5bf94dc68
+    let paned_weak = bottom_pane.downgrade();
     bottom_pane.connect_map(move |_| {
         let paned_weak = paned_weak.clone();
 
@@ -132,12 +146,17 @@ fn create_panes(
         });
     });
 
-    let side_pane = gtk::Paned::builder()
-        .wide_handle(true)
-        .vexpand(true)
-        .start_child(&gtk::Label::new(Some("Sidebar")))
-        .end_child(&bottom_pane)
-        .build();
+    let paned_weak = side_pane.downgrade();
+    side_pane.connect_map(move |_| {
+        let paned_weak = paned_weak.clone();
+
+        glib::idle_add_local(move || {
+            let upgrade = paned_weak.upgrade().unwrap();
+            upgrade.set_position(upgrade.max_position() / 4);
+            return glib::ControlFlow::Break;
+        });
+    });
+    // end source
 
     let anim_s = adw::TimedAnimation::new(
         &side_pane,
@@ -245,6 +264,109 @@ fn create_main_section() -> gtk::ScrolledWindow {
     return scroll;
 }
 
+fn create_side_section() -> gtk::ScrolledWindow {
+    let registers: Vec<(&str, i32)> = vec![
+        ("r0", 0),
+        ("r1", 0),
+        ("r2", 0),
+        ("r3", 0),
+        ("r4", 0),
+        ("r5", 0),
+        ("r6", 0),
+        ("r7", 0),
+        ("r8", 0),
+        ("r9", 0),
+        ("r10", 0),
+        ("r11", 0),
+        ("r12", 0),
+        ("r13_sp", 0),
+        ("r14_lr", 0),
+        ("r15_pc", 0),
+        ("apsr", 0),
+    ];
+
+    let vec = registers
+        .into_iter()
+        .map(|v| glib::BoxedAnyObject::new(v))
+        .collect::<Vec<glib::BoxedAnyObject>>();
+    let model = gio::ListStore::new::<glib::BoxedAnyObject>();
+    model.extend_from_slice(&vec);
+
+    let column_view = gtk::ColumnView::new(Some(gtk::NoSelection::new(Some(model.clone()))));
+
+    let register_factory = gtk::SignalListItemFactory::new();
+    let value_factory = gtk::SignalListItemFactory::new();
+
+    register_factory.connect_setup(|_, list_item_obj| {
+        list_item_obj
+            .downcast_ref::<gtk::ColumnViewCell>()
+            .unwrap()
+            .set_child(Some(
+                &gtk::Label::builder()
+                    .halign(Align::Start)
+                    .css_classes(["font-12"])
+                    .width_chars(5)
+                    .build(),
+            ));
+    });
+    value_factory.connect_setup(|_, list_item_obj| {
+        list_item_obj
+            .downcast_ref::<gtk::ColumnViewCell>()
+            .unwrap()
+            .set_child(Some(&create_spin_button()))
+    });
+
+    register_factory.connect_bind(|_, list_item_obj| {
+        let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
+
+        let num_obj = list_item
+            .item()
+            .and_downcast::<glib::BoxedAnyObject>()
+            .unwrap();
+        let row = *num_obj.borrow::<(&str, i32)>();
+
+        list_item
+            .child()
+            .and_downcast::<gtk::Label>()
+            .unwrap()
+            .set_label(row.0);
+    });
+    value_factory.connect_bind(|_, list_item_obj| {
+        let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
+
+        let num_obj = list_item
+            .item()
+            .and_downcast::<glib::BoxedAnyObject>()
+            .unwrap();
+        let row = *num_obj.borrow::<(&str, i32)>();
+
+        list_item
+            .child()
+            .and_downcast::<gtk::SpinButton>()
+            .unwrap()
+            .set_value(row.1.into());
+    });
+
+    let register_column = gtk::ColumnViewColumn::builder()
+        .title("Register")
+        .factory(&register_factory)
+        .resizable(true)
+        // .expand(true)
+        .build();
+    let value_column = gtk::ColumnViewColumn::builder()
+        .title("Value")
+        .factory(&value_factory)
+        .resizable(true)
+        .expand(true)
+        .build();
+    column_view.insert_column(0, &register_column);
+    column_view.insert_column(1, &value_column);
+
+    let scroll = gtk::ScrolledWindow::builder().child(&column_view).build();
+
+    return scroll;
+}
+
 fn create_bottom_bar() -> gtk::HeaderBar {
     let header = gtk::HeaderBar::builder()
         .title_widget(&gtk::Label::new(Some("")))
@@ -274,4 +396,19 @@ fn create_bottom_bar() -> gtk::HeaderBar {
     header.pack_end(&toggle_bottom);
 
     return header;
+}
+
+fn create_spin_button() -> gtk::SpinButton {
+    let adjustment = gtk::Adjustment::new(0.0, i32::MIN.into(), i32::MAX.into(), 1.0, 0.0, 0.0);
+    let spin_button = gtk::SpinButton::builder()
+        .adjustment(&adjustment)
+        .css_classes(["font-12", "no-min-height"])
+        .valign(Align::Start)
+        .hexpand(true)
+        .build();
+    let last_child = spin_button.last_child().unwrap();
+    let second_last_child = last_child.prev_sibling().unwrap();
+    last_child.set_visible(false);
+    second_last_child.set_visible(false);
+    return spin_button;
 }
