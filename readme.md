@@ -1,29 +1,17 @@
 # Todo
 
+We need to do some refactors
+
+- [ ] split into main.rs, sidebar.rs, editor_section.rs
+- [ ] create css file
+
+I think the best
+
 - [ ] ask Ian if scrolling should be disabled for SpinButton
-- [ ] make spin button update registers
 
 - [ ] copy over starting code from ~/Projects/project
 - [ ] add zoom shortcuts
 - [ ] make source view style scheme light/dark system adaptive
-
----
-
-Animations
-
-```rust
-let button_container = create_button_container();
-let button = gtk::Button::with_label("grow");
-let anim = adw::TimedAnimation::new(
-    &button,
-    20.0,
-    100.0,
-    250,
-    adw::PropertyAnimationTarget::new(&button, "width_request"),
-);
-button_container.append(&button);
-button.connect_clicked(move |_| anim.play());
-```
 
 ---
 
