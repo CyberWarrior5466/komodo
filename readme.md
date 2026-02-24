@@ -2,7 +2,6 @@
 
 We need to do some refactors
 
-- [ ] split into main.rs, sidebar.rs, editor_section.rs
 - [ ] create css file
 
 I think the best

@@ -8,11 +8,20 @@ use adw::prelude::*;
 use gtk::{Orientation, gdk, gio, glib};
 
 fn main() -> glib::ExitCode {
+    gio::resources_register_include!("compiled.gresource").unwrap();
+
     let app = adw::Application::new(Some("com.my-gtk-app"), Default::default());
 
-    app.connect_startup(|_| load_css());
+    app.connect_startup(|app| {
+        load_css();
+        setup_shortcuts(app);
+    });
     app.connect_activate(build_ui);
 
+    app.run()
+}
+
+fn setup_shortcuts(app: &adw::Application) {
     let quit_action = gio::ActionEntry::builder("quit")
         .activate(move |app: &adw::Application, _, _| app.quit())
         .build();
@@ -21,23 +30,12 @@ fn main() -> glib::ExitCode {
 
     app.set_accels_for_action("win.toggle-side", &["<control>b"]);
     app.set_accels_for_action("win.toggle-bottom", &["<control>j"]);
-
-    app.run()
 }
 
 fn load_css() {
-    // Load the CSS file and add it to the provider
     let provider = gtk::CssProvider::new();
-    provider.load_from_string(
-        // Orange 2
-        "
-        .orange { color: #ffa348; }
-        .font-12 { font-size: 12px; }
-        .no-min-height { min-height: 0px; }
-        listview cell { padding: 1px 8px; }",
-    );
+    provider.load_from_resource("/com/my-gtk-app/style.css");
 
-    // Add the provider to the default screen
     gtk::style_context_add_provider_for_display(
         &gdk::Display::default().expect("Could not connect to a display."),
         &provider,
@@ -46,8 +44,6 @@ fn load_css() {
 }
 
 fn build_ui(app: &adw::Application) {
-    gio::resources_register_include!("compiled.gresource").unwrap();
-
     let display = gdk::Display::default().unwrap();
     let icon_theme = gtk::IconTheme::for_display(&display);
     icon_theme.add_resource_path("/com/my-gtk-app");

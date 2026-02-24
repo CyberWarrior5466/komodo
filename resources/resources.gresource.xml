@@ -5,5 +5,6 @@
     <file>dock-bottom-symbolic.svg</file>
     <file>dock-left-symbolic.svg</file>
     <file>execute-from-symbolic.svg</file>
+    <file>style.css</file>
   </gresource>
 </gresources>
