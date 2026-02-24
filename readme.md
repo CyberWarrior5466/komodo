@@ -1,6 +1,7 @@
 # Todo
 
-- [ ] add scroll view to left side
+- [ ] ask Ian if scrolling should be disabled for SpinButton
+- [ ] make spin button update registers
 
 - [ ] copy over starting code from ~/Projects/project
 - [ ] add zoom shortcuts

@@ -1,4 +1,6 @@
 use std::cell::Cell;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use adw::prelude::AdwApplicationWindowExt;
 use adw::prelude::AnimationExt;
@@ -36,12 +38,9 @@ fn load_css() {
         // Orange 2
         "
         .orange { color: #ffa348; }
-        .font-12 { font-size: 12px }
+        .font-12 { font-size: 12px; }
         .no-min-height { min-height: 0px; }
-        listview cell {
-            padding: 1px 8px;
-        }
-        ",
+        listview cell { padding: 1px 8px; }",
     );
 
     // Add the provider to the default screen
@@ -265,32 +264,35 @@ fn create_main_section() -> gtk::ScrolledWindow {
 }
 
 fn create_side_section() -> gtk::ScrolledWindow {
-    let registers: Vec<(&str, i32)> = vec![
-        ("r0", 0),
-        ("r1", 0),
-        ("r2", 0),
-        ("r3", 0),
-        ("r4", 0),
-        ("r5", 0),
-        ("r6", 0),
-        ("r7", 0),
-        ("r8", 0),
-        ("r9", 0),
-        ("r10", 0),
-        ("r11", 0),
-        ("r12", 0),
-        ("r13_sp", 0),
-        ("r14_lr", 0),
-        ("r15_pc", 0),
-        ("apsr", 0),
+    type Reg = (usize, String, i32);
+    let registers: Vec<Reg> = vec![
+        (0, "r0".into(), 0),
+        (1, "r1".into(), 0),
+        (2, "r2".into(), 0),
+        (3, "r3".into(), 0),
+        (4, "r4".into(), 0),
+        (5, "r5".into(), 0),
+        (6, "r6".into(), 0),
+        (7, "r7".into(), 0),
+        (8, "r8".into(), 0),
+        (9, "r9".into(), 0),
+        (10, "r10".into(), 0),
+        (11, "r11".into(), 0),
+        (12, "r12".into(), 0),
+        (13, "r13_sp".into(), 0),
+        (14, "r14_lr".into(), 0),
+        (15, "r15_pc".into(), 0),
+        (16, "apsr".into(), 0),
     ];
 
-    let vec = registers
-        .into_iter()
-        .map(|v| glib::BoxedAnyObject::new(v))
-        .collect::<Vec<glib::BoxedAnyObject>>();
+    let vec = Rc::new(RefCell::new(
+        registers
+            .into_iter()
+            .map(|v| glib::BoxedAnyObject::new(v))
+            .collect::<Vec<glib::BoxedAnyObject>>(),
+    ));
     let model = gio::ListStore::new::<glib::BoxedAnyObject>();
-    model.extend_from_slice(&vec);
+    model.extend_from_slice(&vec.borrow());
 
     let column_view = gtk::ColumnView::new(Some(gtk::NoSelection::new(Some(model.clone()))));
 
@@ -323,35 +325,46 @@ fn create_side_section() -> gtk::ScrolledWindow {
             .item()
             .and_downcast::<glib::BoxedAnyObject>()
             .unwrap();
-        let row = *num_obj.borrow::<(&str, i32)>();
+        let (_, reg_name, _) = num_obj.borrow::<Reg>().clone();
 
         list_item
             .child()
             .and_downcast::<gtk::Label>()
             .unwrap()
-            .set_label(row.0);
+            .set_label(&reg_name);
     });
-    value_factory.connect_bind(|_, list_item_obj| {
+
+    let vec_clone = vec.clone();
+    value_factory.connect_bind(move |_, list_item_obj| {
         let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
 
         let num_obj = list_item
             .item()
             .and_downcast::<glib::BoxedAnyObject>()
             .unwrap();
-        let row = *num_obj.borrow::<(&str, i32)>();
 
-        list_item
-            .child()
-            .and_downcast::<gtk::SpinButton>()
-            .unwrap()
-            .set_value(row.1.into());
+        let (reg_i, _, reg_value) = num_obj.borrow::<Reg>().clone();
+
+        let button = list_item.child().and_downcast::<gtk::SpinButton>().unwrap();
+        button.set_value(reg_value.into());
+
+        let vec_clone2 = vec_clone.clone();
+        button.connect_value_changed(move |btn| {
+            let v = vec_clone2.borrow_mut();
+            v[reg_i].borrow_mut::<Reg>().2 = btn.value_as_int();
+
+            // let regs = v
+            //     .iter()
+            //     .map(|reg| reg.borrow::<Reg>().clone())
+            //     .collect::<Vec<Reg>>();
+            // println!("{:?}", regs)
+        });
     });
 
     let register_column = gtk::ColumnViewColumn::builder()
         .title("Register")
         .factory(&register_factory)
         .resizable(true)
-        // .expand(true)
         .build();
     let value_column = gtk::ColumnViewColumn::builder()
         .title("Value")
