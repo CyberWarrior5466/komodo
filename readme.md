@@ -2,7 +2,8 @@
 
 We need to do some refactors
 
-- [ ] rename my-gtk-app to gtk-app
+## gtk-app
+
 - [ ] merge readmes
 - [ ] convert registers into a list of tuples
 - [ ] refactor lib.rs to take in soru
@@ -13,35 +14,28 @@ We need to do some refactors
 - [ ] add zoom shortcuts
 - [ ] make source view style scheme light/dark system adaptive
 
+## lib
+
+- [ ] add reverse subtract
+- [ ] lsr, asr edge cases
+- [ ] `mov lr, #1` does not work, (register pseudonyms)
+
 ---
 
 See [GUI development with Rust and GTK 4](https://gtk-rs.org/gtk4-rs/stable/latest/book/) book
 
-Install gtk libraries
+Install libraries
 
 ```shell
-sudo apt install pkg-config libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev meson desktop-file-utils gcc gtk-update-icon-cache
+sudo apt install pkg-config libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev meson desktop-file-utils gcc gtk-update-icon-cache binutils-arm-linux-gnueabi
 ```
 
-Install sourceview lib
-
-```shell
-sudo apt install 
-```
+Also consider install developer tools
 
 ```shell
 sudo apt install libadwaita-1-examples
-adwaita-1-demo
-```
+# run with `adwaita-1-demo`
 
-Install icon library
-
-```shell
 flatpak install org.gnome.design.IconLibrary
-```
-
-also may need to install libxml
-
-```shell
-sudo apt install libxml2-utils
+# run with `flatpak run org.gnome.design.IconLibrary`
 ```
