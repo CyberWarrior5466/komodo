@@ -2,9 +2,8 @@
 
 We need to do some refactors
 
-- [ ] get both projects running
+- [ ] rename my-gtk-app to gtk-app
 - [ ] merge readmes
-- [ ] 
 - [ ] convert registers into a list of tuples
 - [ ] refactor lib.rs to take in soru
 
