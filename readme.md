@@ -2,10 +2,6 @@
 
 We need to do some refactors
 
-- [ ] create css file
-
-I think the best
-
 - [ ] ask Ian if scrolling should be disabled for SpinButton
 
 - [ ] copy over starting code from ~/Projects/project
