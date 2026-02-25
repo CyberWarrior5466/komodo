@@ -1,5 +1,5 @@
 use crate::Registers;
-use crate::emulator;
+use crate::lib;
 use std::io::Write;
 use tempfile::{self, NamedTempFile};
 
@@ -7,7 +7,7 @@ fn mock_program(buf: &[u8]) -> Registers {
     let mut regs = Registers::new();
     let mut input_file = NamedTempFile::new().unwrap();
     input_file.write(buf).unwrap();
-    emulator::run_program(&mut input_file, &mut regs, true);
+    lib::run_program(&mut input_file, &mut regs, true);
     return regs;
 }
 

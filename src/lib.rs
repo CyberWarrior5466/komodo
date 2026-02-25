@@ -1,5 +1,4 @@
-use crate::registers;
-
+mod registers;
 use arch::arm::ArmOperandType;
 use arch::arm::ArmOperandType::Imm;
 use arch::arm::ArmOperandType::Reg;
@@ -16,6 +15,7 @@ use capstone::prelude::*;
 use core::ops;
 use goblin;
 use os_info;
+pub use registers::Registers;
 use std::env;
 use std::ffi::OsString;
 use std::io::{self, Write};

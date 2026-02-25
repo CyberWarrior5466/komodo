@@ -2,6 +2,12 @@
 
 We need to do some refactors
 
+- [ ] get both projects running
+- [ ] merge readmes
+- [ ] 
+- [ ] convert registers into a list of tuples
+- [ ] refactor lib.rs to take in soru
+
 - [ ] ask Ian if scrolling should be disabled for SpinButton
 
 - [ ] copy over starting code from ~/Projects/project
@@ -15,16 +21,14 @@ See [GUI development with Rust and GTK 4](https://gtk-rs.org/gtk4-rs/stable/late
 Install gtk libraries
 
 ```shell
-sudo apt install libgtk-4-dev libadwaita-1-dev meson desktop-file-utils gcc gtk-update-icon-cache
+sudo apt install pkg-config libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev meson desktop-file-utils gcc gtk-update-icon-cache
 ```
 
 Install sourceview lib
 
 ```shell
-sudo apt install libgtksourceview-5-dev
+sudo apt install 
 ```
-
-Install libadwaita demo
 
 ```shell
 sudo apt install libadwaita-1-examples
