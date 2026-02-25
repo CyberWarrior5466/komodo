@@ -1,3 +1,5 @@
+use crate::registers;
+
 use arch::arm::ArmOperandType;
 use arch::arm::ArmOperandType::Imm;
 use arch::arm::ArmOperandType::Reg;
@@ -20,8 +22,6 @@ use std::io::{self, Write};
 use std::io::{BufRead, Read};
 use std::process::{self};
 use tempfile::{self, NamedTempFile};
-
-pub mod registers;
 
 struct StatusFlags {
     negative: bool,

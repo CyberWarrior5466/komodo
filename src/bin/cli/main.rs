@@ -1,10 +1,15 @@
-use tempfile::{self, NamedTempFile};
+mod emulator;
+mod registers;
 
-use komodo::registers::Registers;
+use crate::registers::Registers;
+use tempfile::{self, NamedTempFile};
 
 fn main() {
     let mut input_file = NamedTempFile::new().unwrap();
     let mut regs = Registers::new();
-    komodo::run_program(&mut input_file, &mut regs, false);
+    emulator::run_program(&mut input_file, &mut regs, false);
     eprintln!("{:?}", regs);
 }
+
+#[cfg(test)]
+mod test;
