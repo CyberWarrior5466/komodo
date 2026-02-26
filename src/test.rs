@@ -1,20 +1,19 @@
 use crate::Registers;
-use crate::lib;
 use std::io::Write;
 use tempfile::{self, NamedTempFile};
 
-fn mock_program(buf: &[u8]) -> Registers {
+fn mock_program(buf: &'static str) -> Registers {
     let mut regs = Registers::new();
     let mut input_file = NamedTempFile::new().unwrap();
-    input_file.write(buf).unwrap();
-    lib::run_program(&mut input_file, &mut regs, true);
+    write!(input_file, "{}", buf).unwrap();
+    crate::run_program(&mut input_file, &mut regs, true);
     return regs;
 }
 
 #[test]
 fn test_mov() {
     let regs = mock_program(
-        b"
+        "
             mov r0, #0
             mov r1, #1
             mov r2, #'a'
@@ -44,7 +43,7 @@ fn test_mov() {
 #[test]
 fn test_mov_shift() {
     let regs = mock_program(
-        b"
+        "
             mov r0, #4
             mov r1, #1
 
@@ -89,43 +88,43 @@ fn test_mov_shift() {
 #[test]
 #[should_panic]
 fn test_mov_panic_1() {
-    mock_program(b"mov r0, #0x101");
+    mock_program("mov r0, #0x101");
 }
 
 #[test]
 #[should_panic]
 fn test_mov_panic_2() {
-    mock_program(b"mov r0, #0x102");
+    mock_program("mov r0, #0x102");
 }
 
 #[test]
 #[should_panic]
 fn test_mov_panic_3() {
-    mock_program(b"mov r0, #0xff1");
+    mock_program("mov r0, #0xff1");
 }
 
 #[test]
 #[should_panic]
 fn test_mov_panic_4() {
-    mock_program(b"mov r0, #0xf04");
+    mock_program("mov r0, #0xf04");
 }
 
 #[test]
 #[should_panic]
 fn test_mov_panic_5() {
-    mock_program(b"mov r0, #0xff003");
+    mock_program("mov r0, #0xff003");
 }
 
 #[test]
 #[should_panic]
 fn test_mov_panic_6() {
-    mock_program(b"mov r0, #0xF000001F");
+    mock_program("mov r0, #0xF000001F");
 }
 
 #[test]
 fn test_mvn() {
     let regs = mock_program(
-        b"
+        "
             mvn r0, #0
             mvn r1, #0xf",
     );
@@ -136,7 +135,7 @@ fn test_mvn() {
 #[test]
 fn test_add() {
     let regs = mock_program(
-        b"
+        "
             mov r0, #1
             add r1, r0, #2
             add r2, r0, r1
@@ -153,7 +152,7 @@ fn test_add() {
 #[test]
 fn test_sub() {
     let regs = mock_program(
-        b"
+        "
             mov r0, #3
             sub r1, r0, #1
             sub r2, r0, r1
@@ -172,7 +171,7 @@ fn test_sub() {
 #[test]
 fn test_cmp_1() {
     let regs = mock_program(
-        b"
+        "
             mov r0, #0
             cmp r0, #0",
     );
@@ -182,7 +181,7 @@ fn test_cmp_1() {
 #[test]
 fn test_cmp_2() {
     let regs = mock_program(
-        b"
+        "
             mov r0, #0
             cmp r0, #1",
     );
@@ -192,7 +191,7 @@ fn test_cmp_2() {
 #[test]
 fn test_cmp_3() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #1
                 cmp r0, #0x80000000",
     );
@@ -202,7 +201,7 @@ fn test_cmp_3() {
 #[test]
 fn test_cmp_4() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #0x80000000
                 cmp r0, #1",
     );
@@ -212,7 +211,7 @@ fn test_cmp_4() {
 #[test]
 fn test_cmp_5() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #1
                 mov r1, #-2
                 cmp r0, r1",
@@ -223,7 +222,7 @@ fn test_cmp_5() {
 #[test]
 fn test_cmp_6() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #2
                 cmp r0, #1",
     );
@@ -233,7 +232,7 @@ fn test_cmp_6() {
 #[test]
 fn test_cmn_1() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #0
                 cmn r0, #0",
     );
@@ -243,7 +242,7 @@ fn test_cmn_1() {
 #[test]
 fn test_cmn_2() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #0
                 cmn r0, #1",
     );
@@ -253,7 +252,7 @@ fn test_cmn_2() {
 #[test]
 fn test_cmn_3() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #0
                 mov r1, #-1
                 cmn r0, r1",
@@ -264,7 +263,7 @@ fn test_cmn_3() {
 #[test]
 fn test_cmn_4() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #0x7fffffff
                 cmn r0, #1",
     );
@@ -274,7 +273,7 @@ fn test_cmn_4() {
 #[test]
 fn test_cmn_5() {
     let regs = mock_program(
-        b"
+        "
                 mov r0, #0x80000000
                 mov r1, #-1
                 cmn r0, r1",

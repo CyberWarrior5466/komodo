@@ -1,40 +1,14 @@
+pub mod row_object;
+
 use gtk::Align;
 use gtk::gio;
-use gtk::glib;
 use gtk::prelude::*;
-use std::cell::RefCell;
-use std::rc::Rc;
 
-pub fn create() -> gtk::ScrolledWindow {
-    type Reg = (usize, String, i32);
-    let registers: Vec<Reg> = vec![
-        (0, "r0".into(), 0),
-        (1, "r1".into(), 0),
-        (2, "r2".into(), 0),
-        (3, "r3".into(), 0),
-        (4, "r4".into(), 0),
-        (5, "r5".into(), 0),
-        (6, "r6".into(), 0),
-        (7, "r7".into(), 0),
-        (8, "r8".into(), 0),
-        (9, "r9".into(), 0),
-        (10, "r10".into(), 0),
-        (11, "r11".into(), 0),
-        (12, "r12".into(), 0),
-        (13, "r13_sp".into(), 0),
-        (14, "r14_lr".into(), 0),
-        (15, "r15_pc".into(), 0),
-        (16, "apsr".into(), 0),
-    ];
+use row_object::RowObject;
 
-    let vec = Rc::new(RefCell::new(
-        registers
-            .into_iter()
-            .map(|v| glib::BoxedAnyObject::new(v))
-            .collect::<Vec<glib::BoxedAnyObject>>(),
-    ));
-    let model = gio::ListStore::new::<glib::BoxedAnyObject>();
-    model.extend_from_slice(&vec.borrow());
+pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
+    let model = gio::ListStore::new::<RowObject>();
+    model.extend_from_slice(&vec);
 
     let column_view = gtk::ColumnView::new(Some(gtk::NoSelection::new(Some(model.clone()))));
 
@@ -63,44 +37,27 @@ pub fn create() -> gtk::ScrolledWindow {
     register_factory.connect_bind(|_, list_item_obj| {
         let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
 
-        let num_obj = list_item
-            .item()
-            .and_downcast::<glib::BoxedAnyObject>()
-            .unwrap();
-        let (_, reg_name, _) = num_obj.borrow::<Reg>().clone();
+        let int_obj = list_item.item().and_downcast::<RowObject>().unwrap();
 
         list_item
             .child()
             .and_downcast::<gtk::Label>()
             .unwrap()
-            .set_label(&reg_name);
+            .set_label(&int_obj.name());
     });
 
-    value_factory.connect_bind(glib::clone!(
-        #[strong]
-        vec,
-        move |_, list_item_obj| {
-            let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
+    value_factory.connect_bind(move |_, list_item_obj| {
+        let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
 
-            let num_obj = list_item
-                .item()
-                .and_downcast::<glib::BoxedAnyObject>()
-                .unwrap();
+        let int_obj = list_item.item().and_downcast::<RowObject>().unwrap();
 
-            let (reg_i, _, reg_value) = num_obj.borrow::<Reg>().clone();
+        let button = list_item.child().and_downcast::<gtk::SpinButton>().unwrap();
 
-            let button = list_item.child().and_downcast::<gtk::SpinButton>().unwrap();
-            button.set_value(reg_value.into());
-
-            button.connect_value_changed(glib::clone!(
-                #[strong]
-                vec,
-                move |btn| {
-                    vec.borrow_mut()[reg_i].borrow_mut::<Reg>().2 = btn.value_as_int();
-                }
-            ));
-        }
-    ));
+        int_obj
+            .bind_property("number", &button, "value")
+            .sync_create()
+            .build();
+    });
 
     let register_column = gtk::ColumnViewColumn::builder()
         .title("Register")

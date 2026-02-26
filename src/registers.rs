@@ -27,9 +27,53 @@ pub struct Registers {
     pub apsr: i32,
 }
 
+pub type RegTuple = (String, i32);
+
 impl Registers {
     pub fn new() -> Registers {
         Registers::default()
+    }
+
+    pub fn to_ui_format(&self) -> Vec<RegTuple> {
+        vec![
+            ("r0".into(), self.r0),
+            ("r1".into(), self.r1),
+            ("r2".into(), self.r2),
+            ("r3".into(), self.r3),
+            ("r4".into(), self.r4),
+            ("r5".into(), self.r5),
+            ("r6".into(), self.r6),
+            ("r7".into(), self.r7),
+            ("r8".into(), self.r8),
+            ("r9".into(), self.r9),
+            ("r10".into(), self.r10),
+            ("r11".into(), self.r11),
+            ("r12".into(), self.r12),
+            ("r13_sp".into(), self.r13_sp),
+            ("r14_lr".into(), self.r14_lr),
+            ("r15_pc".into(), self.r15_pc),
+            ("apsr".into(), self.apsr),
+        ]
+    }
+
+    pub fn apply_ui_updates(&mut self, ui_regs: &Vec<RegTuple>) {
+        self.r0 = ui_regs[0].1;
+        self.r1 = ui_regs[1].1;
+        self.r2 = ui_regs[2].1;
+        self.r3 = ui_regs[3].1;
+        self.r4 = ui_regs[4].1;
+        self.r5 = ui_regs[5].1;
+        self.r6 = ui_regs[6].1;
+        self.r7 = ui_regs[7].1;
+        self.r8 = ui_regs[8].1;
+        self.r9 = ui_regs[9].1;
+        self.r10 = ui_regs[10].1;
+        self.r11 = ui_regs[11].1;
+        self.r12 = ui_regs[12].1;
+        self.r13_sp = ui_regs[13].1;
+        self.r14_lr = ui_regs[14].1;
+        self.r15_pc = ui_regs[15].1;
+        self.apsr = ui_regs[16].1;
     }
 }
 

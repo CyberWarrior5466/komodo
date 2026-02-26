@@ -15,6 +15,7 @@ use capstone::prelude::*;
 use core::ops;
 use goblin;
 use os_info;
+pub use registers::RegTuple;
 pub use registers::Registers;
 use std::env;
 use std::ffi::OsString;
@@ -90,7 +91,7 @@ pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registe
     let input_path = if mock {
         input_file.path().as_os_str().to_owned()
     } else {
-        read_input_path(input_file)
+        read_input_path_from_user(input_file)
     };
 
     let mut output_file = tempfile::NamedTempFile::new().unwrap();
@@ -118,7 +119,7 @@ pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registe
     }
 }
 
-fn read_input_path(input_file: &mut NamedTempFile) -> OsString {
+fn read_input_path_from_user(input_file: &mut NamedTempFile) -> OsString {
     let args: Vec<OsString> = env::args_os().collect();
 
     let input_path = if args.len() > 1 {
@@ -435,3 +436,6 @@ fn apply_shift(registers: &registers::Registers, num: i32, shift: &ArmShift) -> 
         ArmShift::Invalid => num,
     };
 }
+
+#[cfg(test)]
+mod test;

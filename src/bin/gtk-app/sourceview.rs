@@ -1,4 +1,4 @@
-pub fn create() -> gtk::ScrolledWindow {
+pub fn create() -> (gtk::ScrolledWindow, sourceview5::Buffer) {
     let style_scheme = sourceview5::StyleSchemeManager::new()
         .scheme("Adwaita-dark")
         .expect("style scheme Adwaita-dark exists");
@@ -20,5 +20,16 @@ pub fn create() -> gtk::ScrolledWindow {
         .child(&view)
         .build();
 
-    return scroll;
+    // let action_run = gio::ActionEntry::builder("run")
+    //     .activate(move |_: &adw::ApplicationWindow, _, _| {
+    //         let bounds = buffer.bounds();
+    //         let text = buffer.text(&bounds.0, &bounds.1, true);
+    //         println!("{}", text);
+
+    //         komodo::run_program(input_file, regs, mock);
+    //     })
+    //     .build();
+    // window.add_action_entries([action_run]);
+
+    return (scroll, buffer);
 }
