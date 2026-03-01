@@ -1,13 +1,14 @@
-mod bottom_bar;
+mod bottom_pane;
+mod editor_pane;
 mod panes;
-mod sidebar;
-mod sourceview;
+mod side_pane;
+mod status_bar;
 mod top_buttons;
 
 use adw::prelude::*;
 use gtk::{Orientation, gdk, gio, glib};
 use komodo::{RegTuple, Registers};
-use sidebar::row_object::RowObject;
+use side_pane::row_object::RowObject;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -54,8 +55,8 @@ fn build_ui(app: &adw::Application) {
 
     let window = adw::ApplicationWindow::builder()
         .application(app)
-        .default_width(800)
-        .default_height(600)
+        .default_width(850)
+        .default_height(650)
         .build();
 
     let container = gtk::Box::builder()
@@ -70,7 +71,7 @@ fn build_ui(app: &adw::Application) {
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&container));
 
-    let (editor_scroll, buffer) = sourceview::create();
+    let (editor_scroll, buffer) = editor_pane::create();
 
     let vec_objs = Registers::new()
         .to_ui_format()
@@ -81,9 +82,10 @@ fn build_ui(app: &adw::Application) {
     container.append(&panes::create(
         &window,
         &editor_scroll,
-        &sidebar::create(vec_objs.clone()),
+        &side_pane::create(vec_objs.clone()),
+        &bottom_pane::create(),
     ));
-    toolbar.add_bottom_bar(&bottom_bar::create());
+    toolbar.add_bottom_bar(&status_bar::create());
 
     let action_run = gio::ActionEntry::builder("run")
         .activate(move |_: &adw::ApplicationWindow, _, _| {
@@ -104,15 +106,6 @@ fn build_ui(app: &adw::Application) {
         })
         .build();
     window.add_action_entries([action_run]);
-
-    /*
-    todo:
-    create_action("actions-run") {
-        vec_regs = function(vec_objs);
-        komodo::run_program(buffer.get_text(), vec_regs);
-        vec_objs.update(vec_regs)
-    }
-    */
 
     window.set_content(Some(&toolbar));
     window.present();

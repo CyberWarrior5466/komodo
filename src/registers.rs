@@ -49,9 +49,9 @@ impl Registers {
             ("r10".into(), self.r10),
             ("r11".into(), self.r11),
             ("r12".into(), self.r12),
-            ("r13_sp".into(), self.r13_sp),
-            ("r14_lr".into(), self.r14_lr),
-            ("r15_pc".into(), self.r15_pc),
+            ("r13/sp".into(), self.r13_sp),
+            ("r14/lr".into(), self.r14_lr),
+            ("r15/pc".into(), self.r15_pc),
             ("apsr".into(), self.apsr),
         ]
     }

@@ -1,11 +1,17 @@
-pub fn create() -> (gtk::ScrolledWindow, sourceview5::Buffer) {
-    let style_scheme = sourceview5::StyleSchemeManager::new()
-        .scheme("Adwaita-dark")
-        .expect("style scheme Adwaita-dark exists");
+use gtk::glib;
+use sourceview5::{prelude::BufferExt, *};
 
+pub fn create() -> (gtk::ScrolledWindow, sourceview5::Buffer) {
     let buffer = sourceview5::Buffer::builder()
-        .style_scheme(&style_scheme)
+        .style_scheme(&get_style_scheme())
         .build();
+
+    let adw_style = adw::StyleManager::default();
+    adw_style.connect_dark_notify(glib::clone!(
+        #[strong]
+        buffer,
+        move |_| buffer.set_style_scheme(Some(&get_style_scheme()))
+    ));
 
     let view = sourceview5::View::builder()
         .monospace(true)
@@ -32,4 +38,16 @@ pub fn create() -> (gtk::ScrolledWindow, sourceview5::Buffer) {
     // window.add_action_entries([action_run]);
 
     return (scroll, buffer);
+}
+
+fn get_style_scheme() -> sourceview5::StyleScheme {
+    if adw::StyleManager::default().is_dark() {
+        sourceview5::StyleSchemeManager::new()
+            .scheme("Adwaita-dark")
+            .unwrap()
+    } else {
+        sourceview5::StyleSchemeManager::new()
+            .scheme("Adwaita")
+            .unwrap()
+    }
 }

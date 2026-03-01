@@ -31,7 +31,7 @@ pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
         list_item_obj
             .downcast_ref::<gtk::ColumnViewCell>()
             .unwrap()
-            .set_child(Some(&spin_button_create()))
+            .set_child(Some(&spin_btn_create()))
     });
 
     register_factory.connect_bind(|_, list_item_obj| {
@@ -51,10 +51,11 @@ pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
 
         let int_obj = list_item.item().and_downcast::<RowObject>().unwrap();
 
-        let button = list_item.child().and_downcast::<gtk::SpinButton>().unwrap();
+        let btn = list_item.child().and_downcast::<gtk::SpinButton>().unwrap();
 
         int_obj
-            .bind_property("number", &button, "value")
+            .bind_property("number", &btn, "value")
+            .bidirectional()
             .sync_create()
             .build();
     });
@@ -78,17 +79,17 @@ pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
     return scroll;
 }
 
-fn spin_button_create() -> gtk::SpinButton {
+fn spin_btn_create() -> gtk::SpinButton {
     let adjustment = gtk::Adjustment::new(0.0, i32::MIN.into(), i32::MAX.into(), 1.0, 0.0, 0.0);
-    let spin_button = gtk::SpinButton::builder()
+    let spin_btn = gtk::SpinButton::builder()
         .adjustment(&adjustment)
         .css_classes(["font-12", "no-min-height"])
         .valign(Align::Start)
         .hexpand(true)
         .build();
-    let last_child = spin_button.last_child().unwrap();
+    let last_child = spin_btn.last_child().unwrap();
     let second_last_child = last_child.prev_sibling().unwrap();
     last_child.set_visible(false);
     second_last_child.set_visible(false);
-    return spin_button;
+    return spin_btn;
 }

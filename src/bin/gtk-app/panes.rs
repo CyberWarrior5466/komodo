@@ -7,12 +7,13 @@ pub fn create(
     window: &adw::ApplicationWindow,
     main_section: &impl IsA<gtk::Widget>,
     side_section: &impl IsA<gtk::Widget>,
+    bottom_section: &impl IsA<gtk::Widget>,
 ) -> gtk::Paned {
     let bottom_pane = gtk::Paned::builder()
         .orientation(Orientation::Vertical)
         .wide_handle(true)
         .start_child(main_section)
-        .end_child(&gtk::Label::new(Some("Bottom")))
+        .end_child(bottom_section)
         .build();
 
     let side_pane = gtk::Paned::builder()

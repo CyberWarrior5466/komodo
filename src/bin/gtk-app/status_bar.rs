@@ -13,15 +13,12 @@ pub fn create() -> gtk::HeaderBar {
         .icon_name("dock-bottom-symbolic")
         .build();
 
-    toggle_left.connect_clicked(move |button| {
-        button
-            .activate_action("win.toggle-side", None)
+    toggle_left.connect_clicked(move |btn| {
+        btn.activate_action("win.toggle-side", None)
             .expect("The action does not exist.");
     });
-
-    toggle_bottom.connect_clicked(move |button| {
-        button
-            .activate_action("win.toggle-bottom", None)
+    toggle_bottom.connect_clicked(move |btn| {
+        btn.activate_action("win.toggle-bottom", None)
             .expect("The action does not exist.");
     });
 

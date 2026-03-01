@@ -5,6 +5,12 @@
     <file>dock-bottom-symbolic.svg</file>
     <file>dock-left-symbolic.svg</file>
     <file>execute-from-symbolic.svg</file>
+    <file>skip-forward-large-symbolic.svg</file>
+    <file>step-over-symbolic.svg</file>
+    <file>arrow-pointing-at-line-down-symbolic.svg</file>
+    <file>arrow-pointing-away-from-line-up-symbolic.svg</file>
+    <file>arrow-circular-top-left-symbolic.svg</file>
+    <file>stop-symbolic.svg</file>
     <file>style.css</file>
   </gresource>
 </gresources>
