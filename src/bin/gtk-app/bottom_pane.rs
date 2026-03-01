@@ -12,6 +12,9 @@ pub fn create() -> gtk::Fixed {
     box_.set_size_request(WIDTH, HEIGHT);
     layout.put(&box_, 0.0, 0.0);
 
+    let label = gtk::Label::new(Some("Label"));
+    layout.put(&label, 0.0, 0.0);
+
     let begin_x = Rc::new(Cell::new(0.0));
     let begin_y = Rc::new(Cell::new(0.0));
     let label_x = Rc::new(Cell::new(0.0));
