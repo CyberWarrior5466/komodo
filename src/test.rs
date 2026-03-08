@@ -14,18 +14,19 @@ fn mock_program(buf: &'static str) -> Registers {
 fn test_mov() {
     let regs = mock_program(
         "
-            mov r0, #0
-            mov r1, #1
-            mov r2, #'a'
-            mov r3, #0b1010
-            // an immediate is formed by rotating an 8 bit constant in a 32 bit word
-            mov r4, #0xff
-            mov r5, #0x104
-            mov r6, #0xff0
-            mov r7, #0xff00
-            mov r8, #0xff000
-            mov r9, #0xff000000
-            mov r10, #0xf000000f",
+        mov r0, #0
+        mov r1, #1
+        mov r2, #'a'
+        mov r3, #0b1010
+        // an immediate is formed by rotating an 8 bit constant in a 32 bit word
+        mov r4, #0xff
+        mov r5, #0x104
+        mov r6, #0xff0
+        mov r7, #0xff00
+        mov r8, #0xff000
+        mov r9, #0xff000000
+        mov r10, #0xf000000f
+        ",
     );
     assert_eq!(regs.r0, 0);
     assert_eq!(regs.r1, 1);
@@ -44,22 +45,22 @@ fn test_mov() {
 fn test_mov_shift() {
     let regs = mock_program(
         "
-            mov r0, #4
-            mov r1, #1
+        mov r0, #4
+        mov r1, #1
 
-            mov r2, r0, LSL #2
-            mov r3, r0, LSL r1
+        mov r2, r0, LSL #2
+        mov r3, r0, LSL r1
 
-            mov r4, r0, LSR #2
-            mov r5, r0, LSR r1
+        mov r4, r0, LSR #2
+        mov r5, r0, LSR r1
 
-            mov r6, r0, ASR #2
-            mov r7, r0, ASR r1
+        mov r6, r0, ASR #2
+        mov r7, r0, ASR r1
 
-            mov r8, r1, ROR #2 // 0b01000000...
-            mov r9, r1, ROR r1 // 0b10000000...
+        mov r8, r1, ROR #2 // 0b01000000...
+        mov r9, r1, ROR r1 // 0b10000000...
 
-            mov r10, r1, RRX // 0b1000000...
+        mov r10, r1, RRX // 0b1000000...
         ",
     );
 
@@ -125,8 +126,9 @@ fn test_mov_panic_6() {
 fn test_mvn() {
     let regs = mock_program(
         "
-            mvn r0, #0
-            mvn r1, #0xf",
+        mvn r0, #0
+        mvn r1, #0xf
+        ",
     );
     assert_eq!(regs.r0, -1);
     assert_eq!(regs.r1, -16);
@@ -136,12 +138,13 @@ fn test_mvn() {
 fn test_add() {
     let regs = mock_program(
         "
-            mov r0, #1
-            add r1, r0, #2
-            add r2, r0, r1
+        mov r0, #1
+        add r1, r0, #2
+        add r2, r0, r1
 
-            mvn r3, #0 // -1
-            add r4, r3, r3",
+        mvn r3, #0 // -1
+        add r4, r3, r3
+        ",
     );
     assert_eq!(regs.r1, 3);
     assert_eq!(regs.r2, 4);
@@ -153,14 +156,14 @@ fn test_add() {
 fn test_sub() {
     let regs = mock_program(
         "
-            mov r0, #3
-            sub r1, r0, #1
-            sub r2, r0, r1
+        mov r0, #3
+        sub r1, r0, #1
+        sub r2, r0, r1
 
-            mov r3, #0
-            sub r4, r3, #1
-            // 0 - 1 = -1
-            ",
+        mov r3, #0
+        sub r4, r3, #1
+        // 0 - 1 = -1
+        ",
     );
 
     assert_eq!(regs.r1, 2);
@@ -172,8 +175,9 @@ fn test_sub() {
 fn test_cmp_1() {
     let regs = mock_program(
         "
-            mov r0, #0
-            cmp r0, #0",
+        mov r0, #0
+        cmp r0, #0
+        ",
     );
     assert_eq!(regs.apsr, 0x60000010);
 }
@@ -182,8 +186,9 @@ fn test_cmp_1() {
 fn test_cmp_2() {
     let regs = mock_program(
         "
-            mov r0, #0
-            cmp r0, #1",
+        mov r0, #0
+        cmp r0, #1
+        ",
     );
     assert_eq!(regs.apsr, 0x80000010u32 as i32);
 }
@@ -192,8 +197,9 @@ fn test_cmp_2() {
 fn test_cmp_3() {
     let regs = mock_program(
         "
-                mov r0, #1
-                cmp r0, #0x80000000",
+        mov r0, #1
+        cmp r0, #0x80000000
+        ",
     );
     assert_eq!(regs.apsr, 0x90000010u32 as i32);
 }
@@ -202,8 +208,9 @@ fn test_cmp_3() {
 fn test_cmp_4() {
     let regs = mock_program(
         "
-                mov r0, #0x80000000
-                cmp r0, #1",
+        mov r0, #0x80000000
+        cmp r0, #1
+        ",
     );
     assert_eq!(regs.apsr, 0x30000010);
 }
@@ -212,9 +219,10 @@ fn test_cmp_4() {
 fn test_cmp_5() {
     let regs = mock_program(
         "
-                mov r0, #1
-                mov r1, #-2
-                cmp r0, r1",
+        mov r0, #1
+        mov r1, #-2
+        cmp r0, r1
+        ",
     );
     assert_eq!(regs.apsr, 0x10);
 }
@@ -223,8 +231,9 @@ fn test_cmp_5() {
 fn test_cmp_6() {
     let regs = mock_program(
         "
-                mov r0, #2
-                cmp r0, #1",
+        mov r0, #2
+        cmp r0, #1
+        ",
     );
     assert_eq!(regs.apsr, 0x20000010);
 }
@@ -233,8 +242,9 @@ fn test_cmp_6() {
 fn test_cmn_1() {
     let regs = mock_program(
         "
-                mov r0, #0
-                cmn r0, #0",
+        mov r0, #0
+        cmn r0, #0
+        ",
     );
     assert_eq!(regs.apsr, 0x40000010);
 }
@@ -243,8 +253,9 @@ fn test_cmn_1() {
 fn test_cmn_2() {
     let regs = mock_program(
         "
-                mov r0, #0
-                cmn r0, #1",
+        mov r0, #0
+        cmn r0, #1
+        ",
     );
     assert_eq!(regs.apsr, 0x10);
 }
@@ -253,9 +264,10 @@ fn test_cmn_2() {
 fn test_cmn_3() {
     let regs = mock_program(
         "
-                mov r0, #0
-                mov r1, #-1
-                cmn r0, r1",
+        mov r0, #0
+        mov r1, #-1
+        cmn r0, r1
+    ",
     );
     assert_eq!(regs.apsr, 0x80000010u32 as i32);
 }
@@ -264,8 +276,9 @@ fn test_cmn_3() {
 fn test_cmn_4() {
     let regs = mock_program(
         "
-                mov r0, #0x7fffffff
-                cmn r0, #1",
+        mov r0, #0x7fffffff
+        cmn r0, #1
+        ",
     );
     assert_eq!(regs.apsr, 0x90000010u32 as i32);
 }
@@ -274,9 +287,24 @@ fn test_cmn_4() {
 fn test_cmn_5() {
     let regs = mock_program(
         "
-                mov r0, #0x80000000
-                mov r1, #-1
-                cmn r0, r1",
+        mov r0, #0x80000000
+        mov r1, #-1
+        cmn r0, r1
+        ",
     );
     assert_eq!(regs.apsr, 0x30000010u32 as i32);
+}
+
+#[test]
+fn test_mrs() {
+    let regs = mock_program(
+        "
+        movs r0, #0
+        mrs r0, cpsr
+        movs r1, #-1
+        mrs r1, cpsr
+        ",
+    );
+    assert_eq!(regs.r0, 0x40000010);
+    assert_eq!(regs.r1, 0xc0000010u32 as i32);
 }

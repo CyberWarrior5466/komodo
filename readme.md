@@ -1,6 +1,6 @@
 # Todo
 
-- [ ] use clippy hints
+- [ ] follow clippy hints
 
 ## gtk-app
 
@@ -16,7 +16,6 @@
   
 
 - [ ] instead of panicking in `komodo::run_program`, display a graphical error mesage
-- [ ] play around with `gtk::Fixed`
 
 - [ ] implement debugger
   
@@ -34,8 +33,41 @@
 
 - [ ] move `komodo::run_program` mock false case to `bin/cli`
 - [ ] implement status reg updates `mov{s}`
-- [ ] add reverse subtract
+- [ ] add reverse subtract `rsb`
 - [ ] lsr, asr edge cases
+
+---
+
+Debugging using gas, qemu, gdb
+
+```shell
+sudo apt install binutils-arm-linux-gnueabi qemu-user gdb-multiarch -y
+```
+
+```fish
+arm-linux-gnueabi-as -march=armv4 -D hello.s -o hello.o \
+  && arm-linux-gnueabi-ld hello.o -o hello \
+  && begin;
+    qemu-arm -g 1234 ./hello \
+      & gdb-multiarch -ex 'set architecture arm64' -ex 'file hello' -ex 'target remote localhost:1234' -ex 'layout split' -ex 'layout regs'
+    end;
+```
+
+Create `hello.s` file
+
+```asm
+.global _start
+_start:
+  // code here
+  // ...
+  
+  // exit syscall
+  mov     r7, #1
+  mov     r0, #0
+  svc     #0
+```
+
+see p226 for msr instruction
 
 ---
 
@@ -50,9 +82,17 @@ sudo apt install pkg-config libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev
 Also consider installing developer tools
 
 ```shell
-sudo apt install libadwaita-1-examples
+sudo apt install libadwaita-1-examples -y
 # run with `adwaita-1-demo`
 
 flatpak install org.gnome.design.IconLibrary
 # run with `flatpak run org.gnome.design.IconLibrary`
+```
+
+---
+
+Running old komodo
+
+```shell
+kmd -e
 ```

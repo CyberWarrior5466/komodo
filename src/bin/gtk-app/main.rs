@@ -71,7 +71,7 @@ fn build_ui(app: &adw::Application) {
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&container));
 
-    let (editor_scroll, buffer) = editor_pane::create();
+    let (editor_scroll, buffer) = editor_pane::create(&window);
 
     let vec_objs = Registers::new()
         .to_ui_format()
@@ -87,7 +87,7 @@ fn build_ui(app: &adw::Application) {
     ));
     toolbar.add_bottom_bar(&status_bar::create());
 
-    let action_run = gio::ActionEntry::builder("run")
+    let action_run = gio::ActionEntry::builder("action-run")
         .activate(move |_: &adw::ApplicationWindow, _, _| {
             let vec_regs = vec_objs
                 .iter()

@@ -1,7 +1,7 @@
 use capstone::{
     RegId,
     arch::arm::ArmReg::{
-        ARM_REG_APSR, ARM_REG_R0, ARM_REG_R12, ARM_REG_R13, ARM_REG_R14, ARM_REG_R15,
+        ARM_REG_APSR, ARM_REG_R0, ARM_REG_R12, ARM_REG_R13, ARM_REG_R14, ARM_REG_R15, ARM_REG_SPSR,
     },
 };
 use std::ops::{Index, IndexMut};
@@ -146,7 +146,7 @@ impl Index<&RegId> for Registers {
             ARM_REG_R13 => &self.r13_sp,
             ARM_REG_R14 => &self.r14_lr,
             ARM_REG_R15 => &self.r15_pc,
-            ARM_REG_APSR => &self.apsr,
+            ARM_REG_APSR | ARM_REG_SPSR => &self.apsr,
             _ => panic!(
                 "index out of bounds: the len is 16 but the index is {}",
                 reg
@@ -166,7 +166,7 @@ impl IndexMut<&RegId> for Registers {
             ARM_REG_R13 => &mut self.r13_sp,
             ARM_REG_R14 => &mut self.r14_lr,
             ARM_REG_R15 => &mut self.r15_pc,
-            ARM_REG_APSR => &mut self.apsr,
+            ARM_REG_APSR | ARM_REG_SPSR => &mut self.apsr,
             _ => panic!(
                 "index out of bounds: the len is 16 but the index is {}",
                 reg

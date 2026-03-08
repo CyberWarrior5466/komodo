@@ -14,6 +14,8 @@ pub fn create(
         .wide_handle(true)
         .start_child(main_section)
         .end_child(bottom_section)
+        .resize_start_child(true)
+        .resize_end_child(false)
         .build();
 
     let side_pane = gtk::Paned::builder()
@@ -21,6 +23,8 @@ pub fn create(
         .vexpand(true)
         .start_child(side_section)
         .end_child(&bottom_pane)
+        .resize_start_child(false)
+        .resize_end_child(true)
         .build();
 
     // source: https://gemini.google.com/share/c9f5bf94dc68

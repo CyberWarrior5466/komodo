@@ -1,11 +1,14 @@
 .orange {
-    color: #ffa348;
+    color: var(--yellow-4);
 }
 .font-12 {
     font-size: 12px;
 }
 .no-min-height {
     min-height: 0px;
+}
+.darker {
+    background-color: var(--view-bg-color);
 }
 listview cell {
     padding: 1px 8px;

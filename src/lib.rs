@@ -1,90 +1,98 @@
 mod registers;
-use arch::arm::ArmOperandType;
-use arch::arm::ArmOperandType::Imm;
-use arch::arm::ArmOperandType::Reg;
-use capstone::Capstone;
-use capstone::Insn;
-use capstone::arch::ArchOperand;
-use capstone::arch::ArchOperand::ArmOperand;
-use capstone::arch::BuildsCapstone;
-use capstone::arch::arm;
-use capstone::arch::arm::ArmReg::ARM_REG_APSR;
-use capstone::arch::arm::ArmReg::ARM_REG_SPSR;
-use capstone::arch::arm::ArmShift;
-use capstone::prelude::*;
+mod status_flags;
+
+use capstone::{
+    Capstone, Insn,
+    arch::{
+        ArchOperand, BuildsCapstone,
+        arm::{
+            ArchMode, ArmOperand,
+            ArmOperandType::{self, Imm, Reg},
+            ArmReg::{ARM_REG_APSR, ARM_REG_SPSR},
+            ArmShift,
+        },
+    },
+    prelude::*,
+};
 use core::ops;
 use goblin;
 use os_info;
-pub use registers::RegTuple;
-pub use registers::Registers;
-use std::env;
-use std::ffi::OsString;
-use std::io::{self, Write};
-use std::io::{BufRead, Read};
-use std::process::{self};
+pub use registers::{RegTuple, Registers};
+use status_flags::StatusFlags;
+use std::{
+    env,
+    ffi::OsString,
+    io::{self, BufRead, Read, Write},
+    process::{self},
+};
 use tempfile::{self, NamedTempFile};
 
-struct StatusFlags {
-    negative: bool,
-    zero: bool,
-    carry: bool,
-    overflow: bool,
-    processor_mode: ProcessorMode,
+use crate::status_flags::update_from_flags;
+
+#[derive(Default, Debug)]
+struct Instr {
+    mnemonic: String,
+    update_status_flags: Option<bool>,
+    condition: Condition,
 }
 
-impl StatusFlags {
-    fn new() -> StatusFlags {
-        StatusFlags {
-            negative: false,
-            zero: false,
-            carry: false,
-            overflow: false,
-            processor_mode: ProcessorMode::User,
+#[derive(Default, Debug)]
+enum Condition {
+    /// Equal
+    Eq,
+    /// Not equal
+    Ne,
+    /// Carry set / Unsigned higher or same
+    CsHs,
+    /// Carry clear / Unsigned lower
+    CcLo,
+    /// Minus
+    Mi,
+    /// Plus
+    Pl,
+    /// Overflow
+    Vs,
+    /// No overflow
+    Vc,
+    /// Unsigned higher
+    Hi,
+    /// Unsigned lower or same
+    Ls,
+    /// Signed greater than or equal
+    Ge,
+    /// Signed less than
+    Lt,
+    /// Signed greataer than
+    Gt,
+    /// Signed less than or equal
+    Le,
+    /// Always
+    #[default]
+    Al,
+}
+
+impl From<&str> for Condition {
+    fn from(value: &str) -> Self {
+        use Condition::*;
+        match value.to_ascii_lowercase().as_str() {
+            "eq" => Eq,
+            "ne" => Ne,
+            "cs" | "hs" => CsHs,
+            "cc" | "lo" => CcLo,
+            "mi" => Mi,
+            "pl" => Pl,
+            "vs" => Vs,
+            "vc" => Vc,
+            "hi" => Hi,
+            "ls" => Ls,
+            "ge" => Ge,
+            "lt" => Lt,
+            "gt" => Gt,
+            "le" => Le,
+            "" | "al" => Al,
+            _ => panic!("Unrecognised condition {}", value),
         }
     }
-}
-
-impl From<i32> for StatusFlags {
-    fn from(n: i32) -> Self {
-        StatusFlags {
-            negative: n & (1 << 31) != 0,
-            zero: n & (1 << 30) != 0,
-            carry: n & (1 << 29) != 0,
-            overflow: n & (1 << 28) != 0,
-            processor_mode: ProcessorMode::User,
-        }
-    }
-}
-
-impl From<StatusFlags> for i32 {
-    fn from(flags: StatusFlags) -> Self {
-        let mut ans = 0i32;
-        if flags.negative {
-            ans |= 1 << 31;
-        }
-        if flags.zero {
-            ans |= 1 << 30;
-        }
-        if flags.carry {
-            ans |= 1 << 29;
-        }
-        if flags.overflow {
-            ans |= 1 << 28;
-        }
-        ans |= flags.processor_mode as i32;
-
-        return ans;
-    }
-}
-
-enum ProcessorMode {
-    User = 0b10000,
-    // Fiq = 0b10001,
-    // Irq = 0b10010,
-    // Supervisor = 0b10011,
-    // Abort = 0b10111,
-    // Undefined = 0b11011,
-    // System = 0b11111,
 }
 
 pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registers, mock: bool) {
@@ -104,7 +112,7 @@ pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registe
 
     let cs = Capstone::new()
         .arm()
-        .mode(arch::arm::ArchMode::Arm)
+        .mode(ArchMode::Arm)
         .detail(true)
         .build()
         .expect("Failed to run capstone");
@@ -114,8 +122,8 @@ pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registe
         .expect("Failed to diassemble");
 
     for i in instrs.as_ref() {
-        let [mnemonic, condition] = extract_condition(i);
-        execute(&cs, i, mnemonic, condition, regs);
+        let instr = extract_instr(i);
+        execute(&cs, i, regs, &instr);
     }
 }
 
@@ -198,61 +206,80 @@ fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
     }
 }
 
-fn extract_condition(i: &Insn) -> [String; 2] {
+fn extract_instr(insn: &Insn) -> Instr {
     // A4.2, p436 from DDI01001 spec
-    // list of (mneomonic, should_update_cpsr)
-    let valid_mnemonics = [
-        "add", "sub", "mul", "and", "eor", "orr", "mla", "mov", "lsl", "lsr", "asr", "ror", "rrx",
-        "mvn", "cmp", "cmn", "mrs",
+
+    let instr_s_cond = [
+        "add", "sub", "adc", "and", "bic", "eor", "mla", "mov", "mul", "mvn", "orr", "rsb", "rsc",
+        "smlal", "smull", "umlal", "umull", "lsl", "lsr", "asr", "ror", "rrx",
     ];
 
-    /*
-    conditions that can take in {S}, all except:
-    - mrs
-    - cmp
-    */
-
-    let valid_conditions = [
-        "", "eq", "ne", "cs", "hs", "cc", "lo", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt",
-        "gt", "le", "al",
+    let instr_cond_instr = [
+        ("ldr", "b"),
+        ("ldr", "bt"),
+        ("ldr", "h"),
+        ("ldr", "sb"),
+        ("ldr", "sh"),
+        ("ldr", "t"),
+        ("str", "b"),
+        ("str", "bt"),
+        ("str", "h"),
+        ("str", "t"),
+        ("swp", "b"),
     ];
 
-    let mnemonic = i
-        .mnemonic()
-        .expect("failed to get mnemonic for instruction");
+    let instr_cond = [
+        "bl", "b", "cmn", "cmp", "ldr", "mrs", "msr", "str", "svc", "swp", "teq", "tst",
+    ];
 
-    for m in valid_mnemonics {
-        if mnemonic.starts_with(m) {
-            let rest = &mnemonic[m.len()..];
-            if rest.starts_with("s") {}
-            let mut condition = &mnemonic[m.len()..];
-            if condition == "" {
-                condition = "al";
-            }
-            if !valid_conditions.contains(&condition) {
-                panic!("Unkown condition {}", condition);
-            }
+    let target = insn.mnemonic().unwrap();
+    {
+        let instr = match_instr(&instr_s_cond, &target);
 
-            return [m.to_string(), condition.to_string()];
+        if !instr.is_empty() {
+            let rest = &target[instr.len()..];
+            let is_s = rest.starts_with("s");
+            let condition_str = if is_s { &rest[1..] } else { rest };
+            return Instr {
+                mnemonic: instr,
+                update_status_flags: Some(is_s),
+                condition: Condition::from(condition_str),
+            };
         }
     }
 
-    panic!("Unrecognised mnemonic {}", mnemonic);
+    for (instr_start, instr_end) in instr_cond_instr {
+        if target.starts_with(&instr_start) && target.ends_with(&instr_end) {
+            let instr = String::from(instr_start) + instr_end;
+            let rest = &target[instr_start.len()..(target.len() - instr_end.len())];
+            return Instr {
+                mnemonic: instr,
+                update_status_flags: None,
+                condition: Condition::from(rest),
+            };
+        }
+    }
+
+    {
+        let instr = match_instr(&instr_cond, &target);
+
+        if !instr.is_empty() {
+            let rest = &target[instr.len()..];
+            return Instr {
+                mnemonic: instr,
+                update_status_flags: None,
+                condition: Condition::from(rest),
+            };
+        }
+    }
+
+    panic!("Unrecognised mnemonic {}", target);
 }
 
-fn execute(
-    cs: &Capstone,
-    i: &Insn,
-    mneomonic: String,
-    condition: String,
-    regs: &mut registers::Registers,
-) {
+fn execute(cs: &Capstone, i: &Insn, regs: &mut Registers, instr: &Instr) {
     let detail: InsnDetail = cs.insn_detail(&i).expect("Failed to get insn detail");
     let arch_detail: ArchDetail = detail.arch_detail();
     let ops = arch_detail.operands();
-
-    // eprintln!("{} {}", i.mnemonic().unwrap(), i.op_str().unwrap());
-    // eprintln!("{:?}", ops);
 
     let op_types: Vec<ArmOperandType> = ops
         .iter()
@@ -267,21 +294,22 @@ fn execute(
 
     // A3.2.1, p112 from DDI01001 spec
     let flags = StatusFlags::from(regs.apsr);
-    let condition_matches = match condition.as_str() {
-        "eq" => flags.zero,
-        "ne" => !flags.zero,
-        "cs" | "hs" => flags.carry,
-        "cc" | "lo" => !flags.carry,
-        "mi" => flags.negative,
-        "vs" => flags.overflow,
-        "vc" => !flags.overflow,
-        "hi" => flags.carry && !flags.zero,
-        "ls" => flags.carry || flags.zero,
-        "ge" => flags.negative == flags.overflow,
-        "lt" => flags.negative != flags.overflow,
-        "gt" => !flags.zero || flags.negative == flags.overflow,
-        "le" => flags.zero || flags.negative != flags.overflow,
-        "al" => true,
+    use Condition::*;
+    let condition_matches = match instr.condition {
+        Eq => flags.zero,
+        Ne => !flags.zero,
+        CsHs => flags.carry,
+        CcLo => !flags.carry,
+        Mi => flags.negative,
+        Vs => flags.overflow,
+        Vc => !flags.overflow,
+        Hi => flags.carry && !flags.zero,
+        Ls => flags.carry || flags.zero,
+        Ge => flags.negative == flags.overflow,
+        Lt => flags.negative != flags.overflow,
+        Gt => !flags.zero || flags.negative == flags.overflow,
+        Le => flags.zero || flags.negative != flags.overflow,
+        Al => true,
         _ => panic!(),
     };
 
@@ -289,152 +317,162 @@ fn execute(
         return;
     }
 
-    match mneomonic.as_str() {
-        "add" | "sub" | "and" | "bic" | "eor" | "orr" => match ops.as_slice() {
-            [ArmOperand(op1), ArmOperand(op2), ArmOperand(op3)] => {
-                if let Reg(rd) = op1.op_type {
-                    if let Reg(rn) = op2.op_type {
-                        regs[&rd] = binary_op(mneomonic)(regs[&rn], value_of(op3, regs))
-                    }
+    match (instr.mnemonic.as_str(), op_types.as_slice()) {
+        ("add" | "sub" | "and" | "bic" | "eor" | "orr", [Reg(rd), Reg(rn), _shifter]) => {
+            if let ArchOperand::ArmOperand(shifter_operand) = &ops[2] {
+                let value = binary_op(&instr.mnemonic)(regs[rn], value_of(&shifter_operand, regs));
+                regs[rd] = value;
+
+                if instr.update_status_flags.unwrap() {
+                    update_status_flags(&mut regs.apsr, value);
                 }
             }
-            _ => panic!(),
-        },
+        }
 
-        "mul" => match op_types.as_slice() {
-            [Reg(rd), Reg(rm), Reg(rn)] => regs[rd] = regs[rm] * regs[rn],
-            _ => panic!(),
-        },
+        ("mul", [Reg(rd), Reg(rm), Reg(rn)]) => regs[rd] = regs[rm] * regs[rn],
 
-        "mla" => match op_types.as_slice() {
-            [Reg(rd), Reg(rm), Reg(rs), Reg(rn)] => regs[rd] = regs[rm] * regs[rs] + regs[rn],
-            _ => panic!(),
-        },
+        ("mla", [Reg(rd), Reg(rm), Reg(rs), Reg(rn)]) => regs[rd] = regs[rm] * regs[rs] + regs[rn],
 
-        "lsl" | "lsr" | "asr" | "ror" | "rrx" | "mov" => match ops.as_slice() {
-            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
-                if let Reg(rd) = op1.op_type {
-                    regs[&rd] = value_of(shifter_operand, regs);
+        ("lsl" | "lsr" | "asr" | "ror" | "rrx" | "mov", [Reg(rd), _shifter]) => {
+            if let ArchOperand::ArmOperand(shifter_operand) = &ops[1] {
+                let value = value_of(shifter_operand, regs);
+                regs[rd] = value;
+
+                if instr.update_status_flags.unwrap() {
+                    update_status_flags(&mut regs.apsr, value);
                 }
             }
-            [ArmOperand(op1), ArmOperand(op2), ArmOperand(op3)] => {
-                if let Reg(rd) = op1.op_type {
-                    if let Reg(rm) = op2.op_type {
-                        if let Reg(rn) = op3.op_type {
-                            let shift = match mneomonic.as_str() {
-                                "lsl" => ArmShift::LslReg(rn),
-                                "lsr" => ArmShift::LsrReg(rn),
-                                "asr" => ArmShift::AsrReg(rn),
-                                "ror" => ArmShift::RorReg(rn),
-                                "rrx" => ArmShift::RrxReg(rn),
-                                _ => panic!(),
-                            };
-                            regs[&rd] = apply_shift(&regs, regs[&rm], &shift);
-                        }
-                    }
+        }
+        ("lsl" | "lsr" | "asr" | "ror" | "rrx" | "mov", [Reg(rd), Reg(rm), Reg(rn)]) => {
+            let shift = match instr.mnemonic.as_str() {
+                "lsl" => ArmShift::LslReg(*rn),
+                "lsr" => ArmShift::LsrReg(*rn),
+                "asr" => ArmShift::AsrReg(*rn),
+                "ror" => ArmShift::RorReg(*rn),
+                "rrx" => ArmShift::RrxReg(*rn),
+                _ => panic!(),
+            };
+
+            let value = apply_shift(&regs, regs[rm], &shift);
+            regs[rd] = value;
+
+            if instr.update_status_flags.unwrap() {
+                update_status_flags(&mut regs.apsr, value);
+            }
+        }
+
+        ("mvn", [Reg(rd), _shifter]) => {
+            if let ArchOperand::ArmOperand(shifter_operand) = &ops[1] {
+                let value = !value_of(shifter_operand, regs);
+                regs[rd] = value;
+                if instr.update_status_flags.unwrap() {
+                    update_status_flags(&mut regs.apsr, value);
                 }
             }
-            _ => panic!(),
-        },
+        }
 
-        "mvn" => match ops.as_slice() {
-            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
-                if let Reg(rd) = op1.op_type {
-                    regs[&rd] = !value_of(shifter_operand, regs);
-                }
+        ("cmp", [Reg(rn), _shifter]) => {
+            if let ArchOperand::ArmOperand(shifter_operand) = &ops[1] {
+                let shifter_operand_value = value_of(shifter_operand, regs);
+                let mut flags = StatusFlags::from(regs.apsr);
+
+                let (alu_out, should_overflow) = regs[rn].overflowing_sub(shifter_operand_value);
+                flags.negative = (alu_out as i32) < 0;
+                flags.zero = alu_out == 0;
+                flags.carry = !(regs[rn] as u32)
+                    .overflowing_sub(shifter_operand_value as u32)
+                    .1;
+                flags.overflow = should_overflow;
+
+                regs.apsr = update_from_flags(regs.apsr, &flags);
             }
-            _ => panic!(),
-        },
+        }
 
-        "cmp" => match ops.as_slice() {
-            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
-                if let Reg(rn) = op1.op_type {
-                    let shifter_operand_value = value_of(shifter_operand, regs);
-                    let mut flags = StatusFlags::from(regs.apsr);
+        ("cmn", [Reg(rn), _shifter]) => {
+            if let ArchOperand::ArmOperand(shifter_operand) = &ops[1] {
+                let shifter_operand_value = value_of(shifter_operand, regs);
+                let mut flags = StatusFlags::new();
 
-                    let (alu_out, should_overflow) =
-                        regs[&rn].overflowing_sub(shifter_operand_value);
-                    flags.negative = (alu_out as i32) < 0;
-                    flags.zero = alu_out == 0;
-                    flags.carry = !(regs[&rn] as u32)
-                        .overflowing_sub(shifter_operand_value as u32)
-                        .1;
-                    flags.overflow = should_overflow;
+                let (alu_out, should_overflow) = regs[rn].overflowing_add(shifter_operand_value);
+                flags.negative = alu_out < 0;
+                flags.zero = alu_out == 0;
+                flags.carry = (regs[rn] as u32)
+                    .overflowing_add(shifter_operand_value as u32)
+                    .1;
+                flags.overflow = should_overflow;
 
-                    regs.apsr = i32::from(flags);
-                }
+                regs.apsr = update_from_flags(regs.apsr, &flags);
             }
-            _ => panic!(),
-        },
+        }
 
-        "cmn" => match ops.as_slice() {
-            [ArmOperand(op1), ArmOperand(shifter_operand)] => {
-                if let Reg(rn) = op1.op_type {
-                    let shifter_operand_value = value_of(shifter_operand, regs);
-                    let mut flags = StatusFlags::new();
+        ("mrs", [Reg(rd), Reg(rn)]) => {
+            assert!(rn.0 == ARM_REG_APSR as u16 || rn.0 == ARM_REG_SPSR as u16);
+            regs[rd] = regs[rn];
+        }
 
-                    let (alu_out, should_overflow) =
-                        regs[&rn].overflowing_add(shifter_operand_value);
-                    flags.negative = alu_out < 0;
-                    flags.zero = alu_out == 0;
-                    flags.carry = (regs[&rn] as u32)
-                        .overflowing_add(shifter_operand_value as u32)
-                        .1;
-                    flags.overflow = should_overflow;
+        (
+            "adc" | "b" | "bl" | "ldr" | "ldrb" | "ldrbt" | "ldrh" | "ldrsb" | "ldrsh" | "ldrt"
+            | "msr" | "rsb" | "rsc" | "smlal" | "smull" | "str" | "strb" | "strbt" | "strh"
+            | "strt" | "subs" | "swp" | "swpb" | "teq" | "tst" | "umlal" | "umull",
+            _,
+        ) => {
+            todo!()
+        }
 
-                    regs.apsr = i32::from(flags);
-                }
-            }
-            _ => panic!(),
-        },
-
-        "mrs" => match op_types.as_slice() {
-            [Reg(rd_id), Reg(rn_id)] => {
-                if rn_id.0 == ARM_REG_APSR as u16 || rn_id.0 == ARM_REG_SPSR as u16 {
-                    regs[rd_id] = regs[rn_id];
-                } else {
-                    panic!();
-                }
-            }
-            _ => panic!("mrs instr"),
-        },
-
-        _ => panic!("Unrecognised mnemonic {}", mneomonic),
+        _ => panic!("Unrecognised mnemonic {}", instr.mnemonic),
     }
 }
 
-fn binary_op(mneomonic: String) -> fn(i32, i32) -> i32 {
-    return match mneomonic.as_str() {
+fn update_status_flags(apsr: &mut i32, value: i32) {
+    let mut flags = StatusFlags::from(*apsr);
+    flags.negative = value < 0;
+    flags.zero = value == 0;
+    *apsr = update_from_flags(*apsr, &flags);
+}
+
+fn match_instr(instrs: &[&'static str], target: &str) -> String {
+    for i in instrs.iter() {
+        if target.starts_with(i) {
+            let string = i.to_string();
+            return string;
+        }
+    }
+    String::new()
+}
+
+fn binary_op(mneomonic: &String) -> fn(i32, i32) -> i32 {
+    match mneomonic.as_str() {
         "add" => ops::Add::add,
         "sub" => ops::Sub::sub,
         "and" => ops::BitAnd::bitand,
         "eor" => ops::BitXor::bitxor,
         "orr" => ops::BitOr::bitor,
         _ => panic!(),
-    };
+    }
 }
 
-fn value_of(operand: &arm::ArmOperand, registers: &registers::Registers) -> i32 {
-    return match operand.op_type {
+fn value_of(operand: &ArmOperand, registers: &registers::Registers) -> i32 {
+    match operand.op_type {
         Reg(reg_id) => apply_shift(&registers, registers[&reg_id], &operand.shift),
         Imm(n) => n,
         ArmOperandType::Invalid | _ => panic!(),
-    };
+    }
 }
 
 fn apply_shift(registers: &registers::Registers, num: i32, shift: &ArmShift) -> i32 {
-    return match shift {
-        ArmShift::Lsl(s) => ((num as u32) << s) as i32,
-        ArmShift::Lsr(s) => ((num as u32) >> s) as i32,
-        ArmShift::Asr(s) => num >> s,
-        ArmShift::Ror(s) => num.rotate_right(*s),
-        ArmShift::LslReg(reg) => ((num as u32) << registers[reg]) as i32,
-        ArmShift::LsrReg(reg) => ((num as u32) >> registers[reg]) as i32,
-        ArmShift::AsrReg(reg) => num >> registers[reg],
-        ArmShift::RorReg(reg) => num.rotate_right(registers[reg] as u32),
-        ArmShift::Rrx(_) | ArmShift::RrxReg(_) => num.rotate_right(1),
-        ArmShift::Invalid => num,
-    };
+    use ArmShift::*;
+    match shift {
+        Lsl(s) => ((num as u32) << s) as i32,
+        Lsr(s) => ((num as u32) >> s) as i32,
+        Asr(s) => num >> s,
+        Ror(s) => num.rotate_right(*s),
+        LslReg(reg) => ((num as u32) << registers[reg]) as i32,
+        LsrReg(reg) => ((num as u32) >> registers[reg]) as i32,
+        AsrReg(reg) => num >> registers[reg],
+        RorReg(reg) => num.rotate_right(registers[reg] as u32),
+        Rrx(_) | RrxReg(_) => num.rotate_right(1),
+        Invalid => num,
+    }
 }
 
 #[cfg(test)]

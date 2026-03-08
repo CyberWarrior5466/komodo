@@ -13,7 +13,7 @@ pub fn create() -> gtk::Box {
         .build();
 
     run_btn.connect_clicked(move |btn| {
-        btn.activate_action("win.run", None)
+        btn.activate_action("win.action-run", None)
             .expect("The action does not exist.");
     });
 
@@ -28,6 +28,11 @@ pub fn create() -> gtk::Box {
     debug_btn_box.append(&debug_btn_icon);
     debug_btn_box.append(&debug_btn_label);
     let debug_btn = gtk::Button::builder().child(&debug_btn_box).build();
+
+    debug_btn.connect_clicked(move |btn| {
+        btn.activate_action("win.action-debug", None)
+            .expect("The action does not exist.");
+    });
 
     box_.append(&run_btn);
     box_.append(&debug_btn);
