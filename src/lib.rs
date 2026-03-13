@@ -7,8 +7,8 @@ use capstone::{
         ArchOperand, BuildsCapstone,
         arm::{
             ArchMode, ArmOperand,
-            ArmOperandType::{self, Imm, Reg},
-            ArmReg::{ARM_REG_APSR, ARM_REG_SPSR},
+            ArmOperandType::{self, Imm, Mem, Reg},
+            ArmReg::{ARM_REG_APSR, ARM_REG_PC, ARM_REG_SPSR},
             ArmShift,
         },
     },
@@ -23,6 +23,7 @@ use std::{
     env,
     ffi::OsString,
     io::{self, BufRead, Read, Write},
+    panic,
     process::{self},
 };
 use tempfile::{self, NamedTempFile};
@@ -95,7 +96,7 @@ impl From<&str> for Condition {
     }
 }
 
-pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registers, mock: bool) {
+pub fn run_program(input_file: &mut NamedTempFile, regs: &mut Registers, mock: bool) {
     let input_path = if mock {
         input_file.path().as_os_str().to_owned()
     } else {
@@ -107,8 +108,7 @@ pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registe
 
     run_gnu_gas(input_path, output_path).expect("could not run gnu gas");
 
-    let text_section =
-        extract_text_section(&mut output_file).expect("could not find .text section");
+    let (data_section, text_section) = extract_sections(&mut output_file);
 
     let cs = Capstone::new()
         .arm()
@@ -121,9 +121,17 @@ pub fn run_program(input_file: &mut NamedTempFile, regs: &mut registers::Registe
         .disasm_all(text_section.as_slice(), 0)
         .expect("Failed to diassemble");
 
-    for i in instrs.as_ref() {
-        let instr = extract_instr(i);
-        execute(&cs, i, regs, &instr);
+    while (regs.r15_pc as usize) < instrs.len() * 4 {
+        let insn = &instrs[(regs.r15_pc / 4) as usize];
+        let mnemonic = extract_mnemonic(&insn);
+
+        let halts = execute(&data_section, &text_section, &cs, &insn, regs, &mnemonic);
+
+        if halts {
+            break;
+        }
+
+        regs.r15_pc += 4;
     }
 }
 
@@ -144,24 +152,33 @@ fn read_input_path_from_user(input_file: &mut NamedTempFile) -> OsString {
     return input_path;
 }
 
-fn extract_text_section(output_file: &mut NamedTempFile) -> Option<Vec<u8>> {
+fn extract_sections(output_file: &mut NamedTempFile) -> (Vec<u8>, Vec<u8>) {
     let mut buf: Vec<u8> = Vec::new();
     output_file.read_to_end(&mut buf).unwrap();
+
+    let mut data_section: Option<Vec<u8>> = None;
+    let mut text_section: Option<Vec<u8>> = None;
 
     let parsed = goblin::Object::parse(&buf).unwrap();
     if let goblin::Object::Elf(elf) = parsed {
         for header in elf.section_headers.iter() {
             let name = elf.shdr_strtab.get_at(header.sh_name).unwrap();
-            if name == ".text" {
+
+            if name == ".data" || name == ".text" {
                 let start = header.sh_offset as usize;
                 let end = header.sh_offset as usize + header.sh_size as usize;
-                let text_bytes = buf[start..end].to_owned();
-                return Some(text_bytes);
+                let bytes = buf[start..end].to_owned();
+
+                if name == ".data" {
+                    data_section = Some(bytes);
+                } else {
+                    text_section = Some(bytes);
+                }
             }
         }
     }
 
-    return None;
+    return (data_section.unwrap(), text_section.unwrap());
 }
 
 fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
@@ -206,7 +223,7 @@ fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
     }
 }
 
-fn extract_instr(insn: &Insn) -> Instr {
+fn extract_mnemonic(insn: &Insn) -> Instr {
     // A4.2, p436 from DDI01001 spec
 
     let instr_s_cond = [
@@ -276,8 +293,16 @@ fn extract_instr(insn: &Insn) -> Instr {
     panic!("Unrecognised mnemonic {}", target);
 }
 
-fn execute(cs: &Capstone, i: &Insn, regs: &mut Registers, instr: &Instr) {
-    let detail: InsnDetail = cs.insn_detail(&i).expect("Failed to get insn detail");
+/// Returns `true` if execution is halted, (`SWI 2`)
+fn execute(
+    data_section: &Vec<u8>,
+    text_section: &Vec<u8>,
+    cs: &Capstone,
+    insn: &Insn,
+    regs: &mut Registers,
+    instr: &Instr,
+) -> bool {
+    let detail: InsnDetail = cs.insn_detail(&insn).expect("Failed to get insn detail");
     let arch_detail: ArchDetail = detail.arch_detail();
     let ops = arch_detail.operands();
 
@@ -314,8 +339,11 @@ fn execute(cs: &Capstone, i: &Insn, regs: &mut Registers, instr: &Instr) {
     };
 
     if !condition_matches {
-        return;
+        return false;
     }
+
+    let i = instr.mnemonic.clone() + " " + insn.op_str().unwrap();
+    dbg!(i);
 
     match (instr.mnemonic.as_str(), op_types.as_slice()) {
         ("add" | "sub" | "and" | "bic" | "eor" | "orr", [Reg(rd), Reg(rn), _shifter]) => {
@@ -410,17 +438,66 @@ fn execute(cs: &Capstone, i: &Insn, regs: &mut Registers, instr: &Instr) {
             regs[rd] = regs[rn];
         }
 
+        ("svc", [Imm(n)]) => {
+            /*
+             * see: 'Emulator SWIs' section
+             *   https://studentnet.cs.manchester.ac.uk/resources/software/komodo/manual.html
+             */
+            match *n {
+                // print the least significant byte of r0 as char
+                0 => print!("{}", regs.r0 as u8 as char),
+
+                // read in character from terminal to the significant byte of r0
+                1 => regs.r0 = console::Term::stdout().read_char().unwrap() as i32,
+
+                // halts execution
+                2 => return true,
+
+                // prints a string, pointed to by r0
+                3 => {
+                    for &b in &data_section[regs.r0 as usize..] {
+                        if b == 0 {
+                            break;
+                        }
+                        print!("{}", b as char);
+                    }
+                }
+
+                // print the value of r0 as decimal
+                4 => println!("{}", regs.r0),
+
+                _ => panic!(),
+            }
+        }
+
+        ("ldr", [Reg(rd), Mem(addressing_mode)]) => {
+            dbg!(addressing_mode);
+            dbg!(insn);
+
+            let addr = if addressing_mode.base().0 as u32 == ARM_REG_PC {
+                (regs.r15_pc + addressing_mode.disp() + 8) as usize
+            } else {
+                (regs[&addressing_mode.base()] + addressing_mode.disp()) as usize
+            };
+
+            let bytes = &text_section[addr..addr + 4];
+            let ptr = i32::from_ne_bytes(bytes.try_into().unwrap());
+
+            regs[rd] = ptr;
+        }
+
         (
-            "adc" | "b" | "bl" | "ldr" | "ldrb" | "ldrbt" | "ldrh" | "ldrsb" | "ldrsh" | "ldrt"
-            | "msr" | "rsb" | "rsc" | "smlal" | "smull" | "str" | "strb" | "strbt" | "strh"
-            | "strt" | "subs" | "swp" | "swpb" | "teq" | "tst" | "umlal" | "umull",
+            "adc" | "b" | "bl" | "ldrb" | "ldrbt" | "ldrh" | "ldrsb" | "ldrsh" | "ldrt" | "msr"
+            | "rsb" | "rsc" | "smlal" | "smull" | "str" | "strb" | "strbt" | "strh" | "strt"
+            | "subs" | "swp" | "swpb" | "teq" | "tst" | "umlal" | "umull",
             _,
         ) => {
-            todo!()
+            todo!("{} mnemonic", instr.mnemonic);
         }
 
         _ => panic!("Unrecognised mnemonic {}", instr.mnemonic),
-    }
+    };
+    return false;
 }
 
 fn update_status_flags(apsr: &mut i32, value: i32) {

@@ -1,9 +1,11 @@
 # Todo
 
 - [ ] follow clippy hints
+- [ ] swich from `arm-linux-gnueabi` to `arm-none-eabi`
 
 ## gtk-app
 
+- [ ] make default buffer a simple hello world program
 - [ ] make buffer persistent
 
   on buffer change save changes to file
@@ -19,10 +21,6 @@
 
 - [ ] implement debugger
   
-  clicking debug should create a movable toolbar with several buttons:
-  https://gist.github.com/KurtJacobson/57679e5036dc78e6a7a3ba5e0155dad1
-  continue, step over, step in, step out, restart, stop 
-
 - [ ] fix animations bug
 - [ ] add keyboard shortcuts for run action
 - [ ] ask Ian if scrolling should be disabled for SpinButton
@@ -31,8 +29,8 @@
 
 ## lib
 
+- [ ] be able to print hello world
 - [ ] move `komodo::run_program` mock false case to `bin/cli`
-- [ ] implement status reg updates `mov{s}`
 - [ ] add reverse subtract `rsb`
 - [ ] lsr, asr edge cases
 
@@ -95,4 +93,37 @@ Running old komodo
 
 ```shell
 kmd -e
+```
+
+---
+
+running `objdump -d` shows
+
+```
+Disassembly of section .text:
+
+00010078 <_start>:
+   10078:	e59f1014 	ldr	r1, [pc, #20]	@ 10094 <_start+0x20>
+   ...
+   10090:	ef000000 	svc	0x00000000
+   10094:	00011098 	.word	0x00011098  <------
+```
+
+looking for `.word 0x00011098`, by running `objdump -sj .data`
+
+```
+Contents of section .data:
+ 11098 48656c6c 6f20576f 726c6421 0a        Hello World!.
+```
+
+example for debugging
+
+```
+.section .data
+label:
+  .ascii "hi\n"
+  
+.section .text
+_start:
+  ldr r0, =label
 ```
