@@ -89,6 +89,8 @@ fn build_ui(app: &adw::Application) {
 
     let action_run = gio::ActionEntry::builder("action-run")
         .activate(move |_: &adw::ApplicationWindow, _, _| {
+            // set r15/pc of vec_objs to 0
+
             let vec_regs = vec_objs
                 .iter()
                 .map(|obj| (obj.name(), obj.number()))

@@ -5,6 +5,7 @@
 
 ## gtk-app
 
+- [ ] **bottom panel / output window**
 - [ ] make default buffer a simple hello world program
 - [ ] make buffer persistent
 
@@ -29,7 +30,8 @@
 
 ## lib
 
-- [ ] be able to print hello world
+- [ ] **b instruction**
+- [ ] ldr instruction other cases
 - [ ] move `komodo::run_program` mock false case to `bin/cli`
 - [ ] add reverse subtract `rsb`
 - [ ] lsr, asr edge cases
@@ -126,4 +128,8 @@ label:
 .section .text
 _start:
   ldr r0, =label
+  // print r0
+  swi 3
+  // exit
+  swi 2
 ```

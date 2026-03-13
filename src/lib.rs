@@ -342,9 +342,6 @@ fn execute(
         return false;
     }
 
-    let i = instr.mnemonic.clone() + " " + insn.op_str().unwrap();
-    dbg!(i);
-
     match (instr.mnemonic.as_str(), op_types.as_slice()) {
         ("add" | "sub" | "and" | "bic" | "eor" | "orr", [Reg(rd), Reg(rn), _shifter]) => {
             if let ArchOperand::ArmOperand(shifter_operand) = &ops[2] {
@@ -471,9 +468,6 @@ fn execute(
         }
 
         ("ldr", [Reg(rd), Mem(addressing_mode)]) => {
-            dbg!(addressing_mode);
-            dbg!(insn);
-
             let addr = if addressing_mode.base().0 as u32 == ARM_REG_PC {
                 (regs.r15_pc + addressing_mode.disp() + 8) as usize
             } else {
@@ -486,10 +480,17 @@ fn execute(
             regs[rd] = ptr;
         }
 
+        ("b", [Imm(n)]) => regs.r15_pc = n - 4,
+
+        ("bl", [Imm(n)]) => {
+            regs.r14_lr = regs.r15_pc;
+            regs.r15_pc = n - 4;
+        }
+
         (
-            "adc" | "b" | "bl" | "ldrb" | "ldrbt" | "ldrh" | "ldrsb" | "ldrsh" | "ldrt" | "msr"
-            | "rsb" | "rsc" | "smlal" | "smull" | "str" | "strb" | "strbt" | "strh" | "strt"
-            | "subs" | "swp" | "swpb" | "teq" | "tst" | "umlal" | "umull",
+            "adc" | "bl" | "ldrb" | "ldrbt" | "ldrh" | "ldrsb" | "ldrsh" | "ldrt" | "msr" | "rsb"
+            | "rsc" | "smlal" | "smull" | "str" | "strb" | "strbt" | "strh" | "strt" | "subs"
+            | "swp" | "swpb" | "teq" | "tst" | "umlal" | "umull",
             _,
         ) => {
             todo!("{} mnemonic", instr.mnemonic);
