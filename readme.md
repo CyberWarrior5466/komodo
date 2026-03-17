@@ -6,6 +6,19 @@
 ## gtk-app
 
 - [ ] **bottom panel / output window**
+
+  the first option is to use a high level function,  like
+
+  // swi 4 
+  print_decimal: Fn(i32)
+  // swi 0
+  print_char: Fn(char)
+
+  I think the first step is to make it so the program does not crash on error
+
+  instead the interface should be 
+  print: Fn(String)
+
 - [ ] make default buffer a simple hello world program
 - [ ] make buffer persistent
 
@@ -30,7 +43,6 @@
 
 ## lib
 
-- [ ] **b instruction**
 - [ ] ldr instruction other cases
 - [ ] move `komodo::run_program` mock false case to `bin/cli`
 - [ ] add reverse subtract `rsb`
@@ -133,3 +145,14 @@ _start:
   // exit
   swi 2
 ```
+
+97,
+0,
+160,
+227,
+
+reverse it
+convert to hex
+concat
+
+e3a00061

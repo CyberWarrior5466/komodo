@@ -4,7 +4,7 @@ mod status_flags;
 use capstone::{
     Capstone, Insn,
     arch::{
-        ArchOperand, BuildsCapstone,
+        ArchOperand,
         arm::{
             ArchMode, ArmOperand,
             ArmOperandType::{self, Imm, Mem, Reg},
@@ -20,9 +20,8 @@ use os_info;
 pub use registers::{RegTuple, Registers};
 use status_flags::StatusFlags;
 use std::{
-    env,
     ffi::OsString,
-    io::{self, BufRead, Read, Write},
+    io::{self, Read},
     panic,
     process::{self},
 };
@@ -96,36 +95,48 @@ impl From<&str> for Condition {
     }
 }
 
-pub fn run_program(input_file: &mut NamedTempFile, regs: &mut Registers, mock: bool) {
-    let input_path = if mock {
-        input_file.path().as_os_str().to_owned()
-    } else {
-        read_input_path_from_user(input_file)
-    };
+pub fn disassemble<'a>(
+    cs: &'a Capstone,
+    input_path: OsString,
+    print: impl Fn(String),
+) -> (Vec<u8>, Vec<u8>, capstone::Instructions<'a>) {
+    // let input_path = if mock {
+    //     input_file.path().as_os_str().to_owned()
+    // } else {
+    //     read_input_path_from_user(input_file)
+    // };
 
     let mut output_file = tempfile::NamedTempFile::new().unwrap();
     let output_path = output_file.path().as_os_str().to_os_string();
 
-    run_gnu_gas(input_path, output_path).expect("could not run gnu gas");
+    run_gnu_gas(input_path, output_path, print).expect("could not run gnu gas");
 
     let (data_section, text_section) = extract_sections(&mut output_file);
-
-    let cs = Capstone::new()
-        .arm()
-        .mode(ArchMode::Arm)
-        .detail(true)
-        .build()
-        .expect("Failed to run capstone");
 
     let instrs = cs
         .disasm_all(text_section.as_slice(), 0)
         .expect("Failed to diassemble");
 
+    (data_section, text_section, instrs)
+}
+
+pub fn run_program(
+    cs: &Capstone,
+    data_section: Vec<u8>,
+    text_section: Vec<u8>,
+    regs: &mut Registers,
+    instrs: capstone::Instructions,
+    print: &mut impl FnMut(String),
+) {
     while (regs.r15_pc as usize) < instrs.len() * 4 {
         let insn = &instrs[(regs.r15_pc / 4) as usize];
         let mnemonic = extract_mnemonic(&insn);
 
-        let halts = execute(&data_section, &text_section, &cs, &insn, regs, &mnemonic);
+        let detail: InsnDetail = cs.insn_detail(&insn).unwrap();
+        let arch_detail: ArchDetail = detail.arch_detail();
+        let ops = arch_detail.operands();
+
+        let halts = execute_instruction(&data_section, &text_section, ops, regs, &mnemonic, print);
 
         if halts {
             break;
@@ -135,21 +146,13 @@ pub fn run_program(input_file: &mut NamedTempFile, regs: &mut Registers, mock: b
     }
 }
 
-fn read_input_path_from_user(input_file: &mut NamedTempFile) -> OsString {
-    let args: Vec<OsString> = env::args_os().collect();
-
-    let input_path = if args.len() > 1 {
-        // get file path from cli args
-        args[1].clone()
-    } else {
-        // get temporary file path with content from stdin
-        for line in io::stdin().lock().lines() {
-            input_file.write(line.unwrap().as_bytes()).unwrap();
-            input_file.write(b"\n").unwrap();
-        }
-        input_file.path().as_os_str().to_os_string()
-    };
-    return input_path;
+pub fn new_capstone() -> Capstone {
+    Capstone::new()
+        .arm()
+        .mode(ArchMode::Arm)
+        .detail(true)
+        .build()
+        .unwrap()
 }
 
 fn extract_sections(output_file: &mut NamedTempFile) -> (Vec<u8>, Vec<u8>) {
@@ -181,7 +184,11 @@ fn extract_sections(output_file: &mut NamedTempFile) -> (Vec<u8>, Vec<u8>) {
     return (data_section.unwrap(), text_section.unwrap());
 }
 
-fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
+fn run_gnu_gas(
+    input_path: OsString,
+    output_path: OsString,
+    print: impl Fn(String),
+) -> Result<(), ()> {
     let command = match os_info::get().os_type() {
         os_info::Type::Ubuntu | os_info::Type::Debian => "arm-linux-gnueabi-as",
         os_info::Type::Fedora => "arm-linux-gnu-as",
@@ -217,7 +224,9 @@ fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), ()> {
             if output.status.success() {
                 return Ok(());
             }
-            eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            print(err);
+
             return Err(());
         }
     }
@@ -294,18 +303,14 @@ fn extract_mnemonic(insn: &Insn) -> Instr {
 }
 
 /// Returns `true` if execution is halted, (`SWI 2`)
-fn execute(
+fn execute_instruction(
     data_section: &Vec<u8>,
     text_section: &Vec<u8>,
-    cs: &Capstone,
-    insn: &Insn,
+    ops: Vec<ArchOperand>,
     regs: &mut Registers,
     instr: &Instr,
+    print: &mut impl FnMut(String),
 ) -> bool {
-    let detail: InsnDetail = cs.insn_detail(&insn).expect("Failed to get insn detail");
-    let arch_detail: ArchDetail = detail.arch_detail();
-    let ops = arch_detail.operands();
-
     let op_types: Vec<ArmOperandType> = ops
         .iter()
         .map(|op| {
@@ -402,7 +407,7 @@ fn execute(
                 let mut flags = StatusFlags::from(regs.apsr);
 
                 let (alu_out, should_overflow) = regs[rn].overflowing_sub(shifter_operand_value);
-                flags.negative = (alu_out as i32) < 0;
+                flags.negative = alu_out < 0;
                 flags.zero = alu_out == 0;
                 flags.carry = !(regs[rn] as u32)
                     .overflowing_sub(shifter_operand_value as u32)
@@ -442,7 +447,7 @@ fn execute(
              */
             match *n {
                 // print the least significant byte of r0 as char
-                0 => print!("{}", regs.r0 as u8 as char),
+                0 => print(format!("{}", regs.r0 as u8 as char)),
 
                 // read in character from terminal to the significant byte of r0
                 1 => regs.r0 = console::Term::stdout().read_char().unwrap() as i32,
@@ -452,16 +457,18 @@ fn execute(
 
                 // prints a string, pointed to by r0
                 3 => {
+                    let mut out = String::new();
                     for &b in &data_section[regs.r0 as usize..] {
                         if b == 0 {
                             break;
                         }
-                        print!("{}", b as char);
+                        out.push(b as char);
                     }
+                    print(out);
                 }
 
                 // print the value of r0 as decimal
-                4 => println!("{}", regs.r0),
+                4 => print(format!("{}", regs.r0)),
 
                 _ => panic!(),
             }

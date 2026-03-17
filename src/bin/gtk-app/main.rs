@@ -1,4 +1,5 @@
 mod bottom_pane;
+mod debug_panel;
 mod editor_pane;
 mod panes;
 mod side_pane;
@@ -60,7 +61,7 @@ fn build_ui(app: &adw::Application) {
         .build();
 
     let container = gtk::Box::builder()
-        .orientation(Orientation::Vertical)
+        .orientation(Orientation::Horizontal)
         .vexpand(true)
         .build();
 
@@ -85,26 +86,59 @@ fn build_ui(app: &adw::Application) {
         &side_pane::create(vec_objs.clone()),
         &bottom_pane::create(),
     ));
+
+    let btn_box = debug_panel::create();
+    let revealer = gtk::Revealer::builder()
+        .child(&btn_box)
+        .reveal_child(false)
+        .transition_type(gtk::RevealerTransitionType::SlideLeft)
+        .build();
+    container.append(&revealer);
+
+    let action_debug = gio::ActionEntry::builder("action-debug")
+        .activate(glib::clone!(
+            #[strong]
+            revealer,
+            move |_: &adw::ApplicationWindow, _, _| {
+                revealer.set_reveal_child(!revealer.reveals_child());
+            }
+        ))
+        .build();
+    window.add_action_entries([action_debug]);
+
     toolbar.add_bottom_bar(&status_bar::create());
 
     let action_run = gio::ActionEntry::builder("action-run")
         .activate(move |_: &adw::ApplicationWindow, _, _| {
-            // set r15/pc of vec_objs to 0
+            reset_pc(vec_objs.clone());
 
             let vec_regs = vec_objs
                 .iter()
                 .map(|obj| (obj.name(), obj.number()))
                 .collect::<Vec<RegTuple>>();
 
-            let mut input_file = NamedTempFile::new().unwrap();
+            let cs = komodo::new_capstone();
+            let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
             write!(input_file, "{}", buffer_get_text(&buffer)).unwrap();
+            let input_path = input_file.path().as_os_str().to_owned();
+            let print_dism = |str| glib::g_printerr!("{str}");
+            let (data_section, text_section, instrs) =
+                komodo::disassemble(&cs, input_path, print_dism);
 
-            let mut registers = Registers::new();
-            registers.apply_ui_updates(&vec_regs);
-            komodo::run_program(&mut input_file, &mut registers, true);
+            let mut regs = Registers::new();
+            regs.apply_ui_updates(&vec_regs);
+            let mut print = |str: String| glib::g_print!("{}", str);
+            komodo::run_program(
+                &cs,
+                data_section,
+                text_section,
+                &mut regs,
+                instrs,
+                &mut print,
+            );
 
-            let vec_regs_return = registers.to_ui_format();
-            apply_backend_updates(&vec_objs, vec_regs_return);
+            let vec_regs_return = regs.to_ui_format();
+            apply_backend_updates(vec_objs.clone(), vec_regs_return);
         })
         .build();
     window.add_action_entries([action_run]);
@@ -119,9 +153,17 @@ fn buffer_get_text(buffer: &sourceview5::Buffer) -> String {
     return text.to_string();
 }
 
-fn apply_backend_updates(vec_objs: &Vec<RowObject>, vec_regs: Vec<RegTuple>) {
-    let vec_objs_clone = vec_objs.clone();
-    for (i, obj) in vec_objs_clone.iter().enumerate() {
+fn apply_backend_updates(vec_objs: Vec<RowObject>, vec_regs: Vec<RegTuple>) {
+    for (i, obj) in vec_objs.iter().enumerate() {
         obj.set_number(vec_regs[i].1);
+    }
+}
+
+fn reset_pc(vec_objs: Vec<RowObject>) {
+    for obj in vec_objs {
+        if obj.name() == "r15/pc" {
+            obj.set_number(0);
+            return;
+        }
     }
 }

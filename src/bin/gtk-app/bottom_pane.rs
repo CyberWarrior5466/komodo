@@ -1,3 +1,13 @@
+use gtk::prelude::BoxExt;
+
 pub fn create() -> gtk::Box {
-    return gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    let box_ = gtk::Box::builder().css_classes(["darker"]).build();
+    box_.append(
+        &gtk::Label::builder()
+            .label("")
+            .halign(gtk::Align::Start)
+            .valign(gtk::Align::Start)
+            .build(),
+    );
+    box_
 }

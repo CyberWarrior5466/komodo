@@ -1,13 +1,23 @@
-use crate::Registers;
+use crate::{Registers, new_capstone};
 use std::io::Write;
 use tempfile::{self, NamedTempFile};
 
-fn mock_program(buf: &'static str) -> Registers {
-    let mut regs = Registers::new();
-    let mut input_file = NamedTempFile::new().unwrap();
+fn mock_print_program(buf: &'static str, print: &mut impl FnMut(String)) -> Registers {
+    let cs = new_capstone();
+    let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
     write!(input_file, "{}", buf).unwrap();
-    crate::run_program(&mut input_file, &mut regs, true);
+    let input_path = input_file.path().as_os_str().to_owned();
+    let print_dism = |str| eprint!("{str}");
+    let (data_section, text_section, instrs) = crate::disassemble(&cs, input_path, print_dism);
+
+    let mut regs = Registers::new();
+    crate::run_program(&cs, data_section, text_section, &mut regs, instrs, print);
+
     return regs;
+}
+
+fn mock_program(buf: &'static str) -> Registers {
+    mock_print_program(buf, &mut |_| {})
 }
 
 #[test]
@@ -307,4 +317,27 @@ fn test_mrs() {
     );
     assert_eq!(regs.r0, 0x40000010);
     assert_eq!(regs.r1, 0xc0000010u32 as i32);
+}
+
+#[test]
+fn test_hello() {
+    let mut out: Vec<String> = Vec::new();
+
+    mock_print_program(
+        "
+        .section .data
+        label:
+            .asciz \"hello\n\"
+
+        .section .text
+        _start:
+            ldr r0, =label
+            swi 3 // print r0
+            swi 2 // exit
+        ",
+        &mut |str| out.push(str),
+    );
+
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0], "hello\n");
 }
