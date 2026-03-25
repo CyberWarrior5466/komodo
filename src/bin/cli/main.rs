@@ -34,15 +34,16 @@ fn main() {
 
 fn print_disasm<'a>(instrs: &Instructions<'a>) {
     for i in instrs.iter() {
-        let mut hex = String::new();
-        for b in i.bytes().iter().rev() {
-            hex.push_str(format!("{:x}", b).as_str());
+        let mut bytes: Vec<u8> = Vec::new();
+        for &b in i.bytes().iter().rev() {
+            bytes.push(b);
         }
+        let encoding = i32::from_be_bytes(bytes.clone().try_into().unwrap());
 
         let str = format!(
             "{:x}:\t{}\t\t{}\t{}",
             i.address(),
-            hex,
+            encoding,
             i.mnemonic().unwrap(),
             i.op_str().unwrap()
         );
@@ -59,10 +60,10 @@ fn read_input_path(input_file: &mut NamedTempFile) -> OsString {
     } else {
         // get temporary file path with content from stdin
         for line in io::stdin().lock().lines() {
-            input_file.write(line.unwrap().as_bytes()).unwrap();
+            input_file.write_all(line.unwrap().as_bytes()).unwrap();
             input_file.write(b"\n").unwrap();
         }
         input_file.path().as_os_str().to_os_string()
     };
-    return input_path;
+    input_path
 }

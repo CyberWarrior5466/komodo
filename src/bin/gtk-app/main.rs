@@ -7,9 +7,10 @@ mod status_bar;
 mod top_buttons;
 
 use adw::prelude::*;
+use editor_pane::disasm_object::DisasmObject;
 use gtk::{Orientation, gdk, gio, glib};
 use komodo::{RegTuple, Registers};
-use side_pane::row_object::RowObject;
+use side_pane::reg_object::RegObject;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -72,27 +73,26 @@ fn build_ui(app: &adw::Application) {
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&container));
 
-    let (editor_scroll, buffer) = editor_pane::create(&window);
+    let (editor_scroll, buffer) = editor_pane::create_source();
+    let center_box = gtk::CenterBox::builder()
+        .hexpand(true)
+        .center_widget(&editor_scroll)
+        .build();
 
-    let vec_objs = Registers::new()
+    let vec_reg_objs = Registers::new()
         .to_ui_format()
         .into_iter()
-        .map(|v| RowObject::new(v.0.to_string(), v.1))
-        .collect::<Vec<RowObject>>();
+        .map(|v| RegObject::new(v.0.to_string(), v.1))
+        .collect::<Vec<RegObject>>();
 
     container.append(&panes::create(
         &window,
-        &editor_scroll,
-        &side_pane::create(vec_objs.clone()),
+        &center_box,
+        &side_pane::create(&vec_reg_objs),
         &bottom_pane::create(),
     ));
 
-    let btn_box = debug_panel::create();
-    let revealer = gtk::Revealer::builder()
-        .child(&btn_box)
-        .reveal_child(false)
-        .transition_type(gtk::RevealerTransitionType::SlideLeft)
-        .build();
+    let revealer = debug_panel::create();
     container.append(&revealer);
 
     let action_debug = gio::ActionEntry::builder("action-debug")
@@ -109,40 +109,99 @@ fn build_ui(app: &adw::Application) {
     toolbar.add_bottom_bar(&status_bar::create());
 
     let action_run = gio::ActionEntry::builder("action-run")
-        .activate(move |_: &adw::ApplicationWindow, _, _| {
-            reset_pc(vec_objs.clone());
+        .activate(glib::clone!(
+            #[strong]
+            buffer,
+            move |_: &adw::ApplicationWindow, _, _| {
+                reset_pc(vec_reg_objs.clone());
 
-            let vec_regs = vec_objs
-                .iter()
-                .map(|obj| (obj.name(), obj.number()))
-                .collect::<Vec<RegTuple>>();
+                let vec_regs = vec_reg_objs
+                    .iter()
+                    .map(|obj| (obj.name(), obj.number()))
+                    .collect::<Vec<RegTuple>>();
 
-            let cs = komodo::new_capstone();
-            let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
-            write!(input_file, "{}", buffer_get_text(&buffer)).unwrap();
-            let input_path = input_file.path().as_os_str().to_owned();
-            let print_dism = |str| glib::g_printerr!("{str}");
-            let (data_section, text_section, instrs) =
-                komodo::disassemble(&cs, input_path, print_dism);
+                let cs = komodo::new_capstone();
+                let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
+                write!(input_file, "{}", buffer_get_text(&buffer)).unwrap();
+                let input_path = input_file.path().as_os_str().to_owned();
+                let print_dism = |str| glib::g_printerr!("{str}");
+                let (data_section, text_section, instrs) =
+                    komodo::disassemble(&cs, input_path, print_dism);
 
-            let mut regs = Registers::new();
-            regs.apply_ui_updates(&vec_regs);
-            let mut print = |str: String| glib::g_print!("{}", str);
-            komodo::run_program(
-                &cs,
-                data_section,
-                text_section,
-                &mut regs,
-                instrs,
-                &mut print,
-            );
+                let mut regs = Registers::new();
+                regs.apply_ui_updates(&vec_regs);
+                let mut print = |str: String| glib::g_print!("{}", str);
+                komodo::run_program(
+                    &cs,
+                    data_section,
+                    text_section,
+                    &mut regs,
+                    instrs,
+                    &mut print,
+                );
 
-            let vec_regs_return = regs.to_ui_format();
-            apply_backend_updates(vec_objs.clone(), vec_regs_return);
-        })
+                let vec_regs_return = regs.to_ui_format();
+                apply_backend_updates(vec_reg_objs.clone(), vec_regs_return);
+            }
+        ))
         .build();
     window.add_action_entries([action_run]);
 
+    // ---
+
+    let action_view_source = gio::ActionEntry::builder("action-view-source")
+        .activate(glib::clone!(
+            #[strong]
+            center_box,
+            move |_: &adw::ApplicationWindow, _, _| {
+                center_box.set_center_widget(Some(&editor_scroll));
+            }
+        ))
+        .build();
+
+    let vec_disasm_objs: Vec<DisasmObject> = Vec::new();
+    let model = gio::ListStore::new::<DisasmObject>();
+    model.extend_from_slice(&vec_disasm_objs);
+
+    let label = editor_pane::create_disasm(&model);
+    let action_view_disasm = gio::ActionEntry::builder("action-view-disasm")
+        .activate(glib::clone!(
+            #[strong]
+            center_box,
+            #[strong]
+            buffer,
+            #[strong]
+            model,
+            move |_: &adw::ApplicationWindow, _, _| {
+                let cs = komodo::new_capstone();
+                let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
+                write!(input_file, "{}", buffer_get_text(&buffer)).unwrap();
+                let input_path = input_file.path().as_os_str().to_owned();
+                let print_dism = |str| glib::g_printerr!("{str}");
+                let (_, _, instrs) = komodo::disassemble(&cs, input_path, print_dism);
+
+                model.remove_all();
+                for i in instrs.iter() {
+                    let mut bytes: Vec<u8> = Vec::new();
+                    for &b in i.bytes().iter().rev() {
+                        bytes.push(b);
+                    }
+                    let encoding = u32::from_be_bytes(bytes.clone().try_into().unwrap());
+
+                    model.append(&DisasmObject::new(
+                        i.address() as u32,
+                        encoding,
+                        i.mnemonic().unwrap().to_string() + " " + i.op_str().unwrap(),
+                    ));
+                }
+
+                center_box.set_center_widget(Some(&label));
+            }
+        ))
+        .build();
+    window.add_action_entries([action_view_source, action_view_disasm]);
+
+    window.set_title(Some("Komodo, University of Nottingham"));
     window.set_content(Some(&toolbar));
     window.present();
 }
@@ -153,13 +212,13 @@ fn buffer_get_text(buffer: &sourceview5::Buffer) -> String {
     return text.to_string();
 }
 
-fn apply_backend_updates(vec_objs: Vec<RowObject>, vec_regs: Vec<RegTuple>) {
+fn apply_backend_updates(vec_objs: Vec<RegObject>, vec_regs: Vec<RegTuple>) {
     for (i, obj) in vec_objs.iter().enumerate() {
         obj.set_number(vec_regs[i].1);
     }
 }
 
-fn reset_pc(vec_objs: Vec<RowObject>) {
+fn reset_pc(vec_objs: Vec<RegObject>) {
     for obj in vec_objs {
         if obj.name() == "r15/pc" {
             obj.set_number(0);

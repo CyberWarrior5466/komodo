@@ -1,14 +1,14 @@
-pub mod row_object;
+pub mod reg_object;
 
 use gtk::Align;
 use gtk::gio;
 use gtk::prelude::*;
 
-use row_object::RowObject;
+use reg_object::RegObject;
 
-pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
-    let model = gio::ListStore::new::<RowObject>();
-    model.extend_from_slice(&vec);
+pub fn create(vec: &Vec<RegObject>) -> gtk::ScrolledWindow {
+    let model = gio::ListStore::new::<RegObject>();
+    model.extend_from_slice(vec);
 
     let column_view = gtk::ColumnView::new(Some(gtk::NoSelection::new(Some(model.clone()))));
 
@@ -36,8 +36,7 @@ pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
 
     register_factory.connect_bind(|_, list_item_obj| {
         let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
-
-        let int_obj = list_item.item().and_downcast::<RowObject>().unwrap();
+        let int_obj = list_item.item().and_downcast::<RegObject>().unwrap();
 
         list_item
             .child()
@@ -48,9 +47,7 @@ pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
 
     value_factory.connect_bind(move |_, list_item_obj| {
         let list_item = list_item_obj.downcast_ref::<gtk::ColumnViewCell>().unwrap();
-
-        let int_obj = list_item.item().and_downcast::<RowObject>().unwrap();
-
+        let int_obj = list_item.item().and_downcast::<RegObject>().unwrap();
         let btn = list_item.child().and_downcast::<gtk::SpinButton>().unwrap();
 
         int_obj
@@ -60,23 +57,25 @@ pub fn create(vec: Vec<RowObject>) -> gtk::ScrolledWindow {
             .build();
     });
 
-    let register_column = gtk::ColumnViewColumn::builder()
-        .title("Register")
-        .factory(&register_factory)
-        .resizable(true)
-        .build();
-    let value_column = gtk::ColumnViewColumn::builder()
-        .title("Value")
-        .factory(&value_factory)
-        .resizable(true)
-        .expand(true)
-        .build();
-    column_view.insert_column(0, &register_column);
-    column_view.insert_column(1, &value_column);
+    column_view.insert_column(
+        0,
+        &gtk::ColumnViewColumn::builder()
+            .title("Register")
+            .factory(&register_factory)
+            .resizable(true)
+            .build(),
+    );
+    column_view.insert_column(
+        1,
+        &gtk::ColumnViewColumn::builder()
+            .title("Value")
+            .factory(&value_factory)
+            .resizable(true)
+            .expand(true)
+            .build(),
+    );
 
-    let scroll = gtk::ScrolledWindow::builder().child(&column_view).build();
-
-    return scroll;
+    gtk::ScrolledWindow::builder().child(&column_view).build()
 }
 
 fn spin_btn_create() -> gtk::SpinButton {

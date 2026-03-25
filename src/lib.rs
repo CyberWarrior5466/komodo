@@ -15,8 +15,6 @@ use capstone::{
     prelude::*,
 };
 use core::ops;
-use goblin;
-use os_info;
 pub use registers::{RegTuple, Registers};
 use status_flags::StatusFlags;
 use std::{
@@ -130,9 +128,9 @@ pub fn run_program(
 ) {
     while (regs.r15_pc as usize) < instrs.len() * 4 {
         let insn = &instrs[(regs.r15_pc / 4) as usize];
-        let mnemonic = extract_mnemonic(&insn);
+        let mnemonic = extract_mnemonic(insn);
 
-        let detail: InsnDetail = cs.insn_detail(&insn).unwrap();
+        let detail: InsnDetail = cs.insn_detail(insn).unwrap();
         let arch_detail: ArchDetail = detail.arch_detail();
         let ops = arch_detail.operands();
 
@@ -181,7 +179,7 @@ fn extract_sections(output_file: &mut NamedTempFile) -> (Vec<u8>, Vec<u8>) {
         }
     }
 
-    return (data_section.unwrap(), text_section.unwrap());
+    (data_section.unwrap(), text_section.unwrap())
 }
 
 fn run_gnu_gas(
@@ -227,7 +225,7 @@ fn run_gnu_gas(
             let err = String::from_utf8_lossy(&output.stderr).to_string();
             print(err);
 
-            return Err(());
+            Err(())
         }
     }
 }
@@ -260,7 +258,7 @@ fn extract_mnemonic(insn: &Insn) -> Instr {
 
     let target = insn.mnemonic().unwrap();
     {
-        let instr = match_instr(&instr_s_cond, &target);
+        let instr = match_instr(&instr_s_cond, target);
 
         if !instr.is_empty() {
             let rest = &target[instr.len()..];
@@ -275,7 +273,7 @@ fn extract_mnemonic(insn: &Insn) -> Instr {
     }
 
     for (instr_start, instr_end) in instr_cond_instr {
-        if target.starts_with(&instr_start) && target.ends_with(&instr_end) {
+        if target.starts_with(instr_start) && target.ends_with(&instr_end) {
             let instr = String::from(instr_start) + instr_end;
             let rest = &target[instr_start.len()..(target.len() - instr_end.len())];
             return Instr {
@@ -287,7 +285,7 @@ fn extract_mnemonic(insn: &Insn) -> Instr {
     }
 
     {
-        let instr = match_instr(&instr_cond, &target);
+        let instr = match_instr(&instr_cond, target);
 
         if !instr.is_empty() {
             let rest = &target[instr.len()..];
@@ -304,8 +302,8 @@ fn extract_mnemonic(insn: &Insn) -> Instr {
 
 /// Returns `true` if execution is halted, (`SWI 2`)
 fn execute_instruction(
-    data_section: &Vec<u8>,
-    text_section: &Vec<u8>,
+    data_section: &[u8],
+    text_section: &[u8],
     ops: Vec<ArchOperand>,
     regs: &mut Registers,
     instr: &Instr,
@@ -315,7 +313,7 @@ fn execute_instruction(
         .iter()
         .map(|op| {
             if let ArchOperand::ArmOperand(arm_op) = op {
-                return arm_op.op_type.clone();
+                arm_op.op_type.clone()
             } else {
                 panic!();
             }
@@ -350,7 +348,7 @@ fn execute_instruction(
     match (instr.mnemonic.as_str(), op_types.as_slice()) {
         ("add" | "sub" | "and" | "bic" | "eor" | "orr", [Reg(rd), Reg(rn), _shifter]) => {
             if let ArchOperand::ArmOperand(shifter_operand) = &ops[2] {
-                let value = binary_op(&instr.mnemonic)(regs[rn], value_of(&shifter_operand, regs));
+                let value = binary_op(&instr.mnemonic)(regs[rn], value_of(shifter_operand, regs));
                 regs[rd] = value;
 
                 if instr.update_status_flags.unwrap() {
@@ -383,7 +381,7 @@ fn execute_instruction(
                 _ => panic!(),
             };
 
-            let value = apply_shift(&regs, regs[rm], &shift);
+            let value = apply_shift(regs, regs[rm], &shift);
             regs[rd] = value;
 
             if instr.update_status_flags.unwrap() {
@@ -505,7 +503,7 @@ fn execute_instruction(
 
         _ => panic!("Unrecognised mnemonic {}", instr.mnemonic),
     };
-    return false;
+    false
 }
 
 fn update_status_flags(apsr: &mut i32, value: i32) {
@@ -525,8 +523,8 @@ fn match_instr(instrs: &[&'static str], target: &str) -> String {
     String::new()
 }
 
-fn binary_op(mneomonic: &String) -> fn(i32, i32) -> i32 {
-    match mneomonic.as_str() {
+fn binary_op(mneomonic: &str) -> fn(i32, i32) -> i32 {
+    match mneomonic {
         "add" => ops::Add::add,
         "sub" => ops::Sub::sub,
         "and" => ops::BitAnd::bitand,
@@ -538,9 +536,9 @@ fn binary_op(mneomonic: &String) -> fn(i32, i32) -> i32 {
 
 fn value_of(operand: &ArmOperand, registers: &registers::Registers) -> i32 {
     match operand.op_type {
-        Reg(reg_id) => apply_shift(&registers, registers[&reg_id], &operand.shift),
+        Reg(reg_id) => apply_shift(registers, registers[&reg_id], &operand.shift),
         Imm(n) => n,
-        ArmOperandType::Invalid | _ => panic!(),
+        _ => panic!(),
     }
 }
 

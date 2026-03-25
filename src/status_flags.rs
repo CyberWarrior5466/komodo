@@ -58,5 +58,5 @@ pub fn update_from_flags(apsr: i32, flags: &StatusFlags) -> i32 {
         ans |= 1 << 28;
     }
     ans |= flags.processor_mode as i32;
-    return ans;
+    ans
 }

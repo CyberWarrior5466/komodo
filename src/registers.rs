@@ -56,7 +56,7 @@ impl Registers {
         ]
     }
 
-    pub fn apply_ui_updates(&mut self, ui_regs: &Vec<RegTuple>) {
+    pub fn apply_ui_updates(&mut self, ui_regs: &[RegTuple]) {
         self.r0 = ui_regs[0].1;
         self.r1 = ui_regs[1].1;
         self.r2 = ui_regs[2].1;
@@ -141,8 +141,10 @@ impl Index<&RegId> for Registers {
     fn index(&self, reg_id: &RegId) -> &Self::Output {
         let reg = reg_id.0 as u32;
 
-        match reg as u32 {
-            reg if ARM_REG_R0 <= reg && reg <= ARM_REG_R12 => &self[reg as u16 - ARM_REG_R0 as u16],
+        match reg {
+            reg if (ARM_REG_R0..=ARM_REG_R12).contains(&reg) => {
+                &self[reg as u16 - ARM_REG_R0 as u16]
+            }
             ARM_REG_R13 => &self.r13_sp,
             ARM_REG_R14 => &self.r14_lr,
             ARM_REG_R15 => &self.r15_pc,
@@ -157,10 +159,10 @@ impl Index<&RegId> for Registers {
 
 impl IndexMut<&RegId> for Registers {
     fn index_mut(&mut self, reg_id: &RegId) -> &mut Self::Output {
-        let reg = reg_id.0 as u32;
+        let reg = reg_id.0;
 
         match reg as u32 {
-            reg if ARM_REG_R0 <= reg && reg <= ARM_REG_R12 => {
+            reg if (ARM_REG_R0..=ARM_REG_R12).contains(&reg) => {
                 &mut self[reg as u16 - ARM_REG_R0 as u16]
             }
             ARM_REG_R13 => &mut self.r13_sp,

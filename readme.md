@@ -1,23 +1,15 @@
 # Todo
 
-- [ ] follow clippy hints
-- [ ] swich from `arm-linux-gnueabi` to `arm-none-eabi`
+clicking the switch button,
+calls disassemble and clears `Vec<DisasmObject>` and appends new values
+
+you could make it so clicking run checks if code has already been disassembled,
+but just optimisation and should still work without doing so
+
 
 ## gtk-app
 
 - [ ] **bottom panel / output window**
-
-  the first option is to use a high level function,  like
-
-  // swi 4 
-  print_decimal: Fn(i32)
-  // swi 0
-  print_char: Fn(char)
-
-  I think the first step is to make it so the program does not crash on error
-
-  instead the interface should be 
-  print: Fn(String)
 
 - [ ] make default buffer a simple hello world program
 - [ ] make buffer persistent
@@ -43,6 +35,7 @@
 
 ## lib
 
+- [ ] swich from `arm-linux-gnueabi` to `arm-none-eabi`
 - [ ] ldr instruction other cases
 - [ ] move `komodo::run_program` mock false case to `bin/cli`
 - [ ] add reverse subtract `rsb`
@@ -61,7 +54,17 @@ arm-linux-gnueabi-as -march=armv4 -D hello.s -o hello.o \
   && arm-linux-gnueabi-ld hello.o -o hello \
   && begin;
     qemu-arm -g 1234 ./hello \
-      & gdb-multiarch -ex 'set architecture arm64' -ex 'file hello' -ex 'target remote localhost:1234' -ex 'layout split' -ex 'layout regs'
+      & gdb-multiarch -ex 'set architecture arm' -ex 'file hello' -ex 'target remote localhost:1234' -ex 'layout split' -ex 'layout regs'
+    end;
+```
+
+Debugging libc linked asm file
+
+```fish
+arm-linux-gnueabi-gcc -march=armv4 -ggdb hello_libc.s -o hello_libc \
+  && begin;
+    qemu-arm -g 1234 ./hello_libc \
+      & gdb-multiarch -ex 'set architecture arm' -ex 'file hello_libc' -ex 'target remote localhost:1234' -ex 'layout split' -ex 'layout regs'
     end;
 ```
 
@@ -103,56 +106,4 @@ flatpak install org.gnome.design.IconLibrary
 
 ---
 
-Running old komodo
-
-```shell
-kmd -e
-```
-
----
-
-running `objdump -d` shows
-
-```
-Disassembly of section .text:
-
-00010078 <_start>:
-   10078:	e59f1014 	ldr	r1, [pc, #20]	@ 10094 <_start+0x20>
-   ...
-   10090:	ef000000 	svc	0x00000000
-   10094:	00011098 	.word	0x00011098  <------
-```
-
-looking for `.word 0x00011098`, by running `objdump -sj .data`
-
-```
-Contents of section .data:
- 11098 48656c6c 6f20576f 726c6421 0a        Hello World!.
-```
-
-example for debugging
-
-```
-.section .data
-label:
-  .ascii "hi\n"
-  
-.section .text
-_start:
-  ldr r0, =label
-  // print r0
-  swi 3
-  // exit
-  swi 2
-```
-
-97,
-0,
-160,
-227,
-
-reverse it
-convert to hex
-concat
-
-e3a00061
+p193
