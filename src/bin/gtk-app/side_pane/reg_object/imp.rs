@@ -19,7 +19,7 @@ pub struct RegObject {
 // The central trait for subclassing a GObject
 #[glib::object_subclass]
 impl ObjectSubclass for RegObject {
-    const NAME: &'static str = "MyGtkAppRegObject";
+    const NAME: &'static str = "GtkAppRegObject";
     type Type = super::RegObject;
 }
 

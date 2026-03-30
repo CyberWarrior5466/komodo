@@ -16,7 +16,7 @@ use capstone::{
 };
 use core::ops;
 pub use registers::{RegTuple, Registers};
-use status_flags::StatusFlags;
+pub use status_flags::{ProcessorMode, StatusFlags, update_from_flags};
 use std::{
     ffi::OsString,
     io::{self, Read},
@@ -24,8 +24,6 @@ use std::{
     process::{self},
 };
 use tempfile::{self, NamedTempFile};
-
-use crate::status_flags::update_from_flags;
 
 #[derive(Default, Debug)]
 struct Instr {
@@ -98,12 +96,6 @@ pub fn disassemble<'a>(
     input_path: OsString,
     print: impl Fn(String),
 ) -> (Vec<u8>, Vec<u8>, capstone::Instructions<'a>) {
-    // let input_path = if mock {
-    //     input_file.path().as_os_str().to_owned()
-    // } else {
-    //     read_input_path_from_user(input_file)
-    // };
-
     let mut output_file = tempfile::NamedTempFile::new().unwrap();
     let output_path = output_file.path().as_os_str().to_os_string();
 
@@ -412,7 +404,7 @@ fn execute_instruction(
                     .1;
                 flags.overflow = should_overflow;
 
-                regs.apsr = update_from_flags(regs.apsr, &flags);
+                regs.apsr = status_flags::update_from_flags(regs.apsr, &flags);
             }
         }
 
@@ -429,7 +421,7 @@ fn execute_instruction(
                     .1;
                 flags.overflow = should_overflow;
 
-                regs.apsr = update_from_flags(regs.apsr, &flags);
+                regs.apsr = status_flags::update_from_flags(regs.apsr, &flags);
             }
         }
 
@@ -510,7 +502,7 @@ fn update_status_flags(apsr: &mut i32, value: i32) {
     let mut flags = StatusFlags::from(*apsr);
     flags.negative = value < 0;
     flags.zero = value == 0;
-    *apsr = update_from_flags(*apsr, &flags);
+    *apsr = status_flags::update_from_flags(*apsr, &flags);
 }
 
 fn match_instr(instrs: &[&'static str], target: &str) -> String {

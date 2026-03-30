@@ -21,7 +21,7 @@ pub struct DisasmObject {
 // The central trait for subclassing a GObject
 #[glib::object_subclass]
 impl ObjectSubclass for DisasmObject {
-    const NAME: &'static str = "MyGtkAppDisasmObj";
+    const NAME: &'static str = "GtkAppDisasmObj";
     type Type = super::DisasmObject;
 }
 

@@ -58,7 +58,7 @@ fn build_ui(app: &adw::Application) {
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .default_width(850)
-        .default_height(650)
+        .default_height(694)
         .build();
 
     let container = gtk::Box::builder()
