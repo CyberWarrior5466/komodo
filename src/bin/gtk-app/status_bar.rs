@@ -14,12 +14,11 @@ pub fn create() -> gtk::HeaderBar {
         .build();
 
     toggle_left.connect_clicked(move |btn| {
-        btn.activate_action("win.toggle-side", None)
-            .expect("The action does not exist.");
+        btn.activate_action("win.action-toggle-side", None).unwrap();
     });
     toggle_bottom.connect_clicked(move |btn| {
-        btn.activate_action("win.toggle-bottom", None)
-            .expect("The action does not exist.");
+        btn.activate_action("win.action-toggle-bottom", None)
+            .unwrap();
     });
 
     header.pack_start(&toggle_left);

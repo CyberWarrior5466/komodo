@@ -19,12 +19,12 @@ fn main() -> glib::ExitCode {
 
     let app = adw::Application::new(Some("com.my-gtk-app"), Default::default());
 
-    app.connect_startup(|app| {
-        load_css();
-        setup_shortcuts(app);
+    app.connect_startup(setup_shortcuts);
+    app.connect_activate(|app| {
+        let css_provider = gtk::CssProvider::new();
+        load_css(&css_provider);
+        build_ui(&app, &css_provider)
     });
-    app.connect_activate(build_ui);
-
     app.run()
 }
 
@@ -35,22 +35,26 @@ fn setup_shortcuts(app: &adw::Application) {
     app.add_action_entries([quit_action]);
     app.set_accels_for_action("app.quit", &["<control>q"]);
 
-    app.set_accels_for_action("win.toggle-side", &["<control>b"]);
-    app.set_accels_for_action("win.toggle-bottom", &["<control>j"]);
+    app.set_accels_for_action("win.action-toggle-side", &["<control>b"]);
+    app.set_accels_for_action("win.action-toggle-bottom", &["<control>j"]);
+    app.set_accels_for_action("win.action-zoom-in", &["<control>equal"]);
+    app.set_accels_for_action("win.action-zoom-out", &["<control>minus"]);
+    app.set_accels_for_action("win.action-zoom-in", &["<control>equal"]);
+    app.set_accels_for_action("win.action-zoom-reset", &["<control>0"]);
 }
 
-fn load_css() {
-    let provider = gtk::CssProvider::new();
-    provider.load_from_resource("/com/my-gtk-app/style.css");
+fn load_css(css_provider: &gtk::CssProvider) {
+    // let css_provider = gtk::CssProvider::new();
+    css_provider.load_from_resource("/com/my-gtk-app/style.css");
 
     gtk::style_context_add_provider_for_display(
         &gdk::Display::default().expect("Could not connect to a display."),
-        &provider,
+        css_provider,
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
 }
 
-fn build_ui(app: &adw::Application) {
+fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
     let display = gdk::Display::default().unwrap();
     let icon_theme = gtk::IconTheme::for_display(&display);
     icon_theme.add_resource_path("/com/my-gtk-app");
@@ -73,7 +77,7 @@ fn build_ui(app: &adw::Application) {
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&container));
 
-    let (editor_scroll, buffer) = editor_pane::create_source();
+    let (editor_scroll, buffer) = editor_pane::create_source(&window, &css_provider);
     let center_box = gtk::CenterBox::builder()
         .hexpand(true)
         .center_widget(&editor_scroll)

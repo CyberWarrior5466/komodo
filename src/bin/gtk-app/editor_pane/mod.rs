@@ -1,10 +1,14 @@
 pub mod disasm_object;
+use gtk::gdk::pango;
 use gtk::{gio, glib, prelude::*};
 use sourceview5::prelude::*;
 
-use crate::editor_pane::disasm_object::DisasmObject;
+use disasm_object::DisasmObject;
 
-pub fn create_source() -> (gtk::ScrolledWindow, sourceview5::Buffer) {
+pub fn create_source(
+    window: &adw::ApplicationWindow,
+    css_provider: &gtk::CssProvider,
+) -> (gtk::ScrolledWindow, sourceview5::Buffer) {
     let buffer = sourceview5::Buffer::builder()
         .style_scheme(&get_style_scheme())
         .build();
@@ -13,7 +17,7 @@ pub fn create_source() -> (gtk::ScrolledWindow, sourceview5::Buffer) {
     adw_style.connect_dark_notify(glib::clone!(
         #[strong]
         buffer,
-        move |_| buffer.set_style_scheme(Some(&get_style_scheme()))
+        move |_| buffer.set_style_scheme(Some(&get_style_scheme())) // 14 20 28 38 52 70 94 126 169 226
     ));
 
     let view = sourceview5::View::builder()
@@ -22,6 +26,49 @@ pub fn create_source() -> (gtk::ScrolledWindow, sourceview5::Buffer) {
         .highlight_current_line(true)
         .buffer(&buffer)
         .build();
+
+    let action_zoom_in = gio::ActionEntry::builder("action-zoom-in")
+        .activate(glib::clone!(
+            #[strong]
+            view,
+            #[strong]
+            css_provider,
+            move |_: &adw::ApplicationWindow, _, _| {
+                let font_size = get_zoom(&view.pango_context());
+                set_zoom(
+                    &css_provider,
+                    f64::max(3.0 / pango::SCALE as f64, font_size * pango::SCALE_LARGE),
+                );
+            }
+        ))
+        .build();
+
+    let action_zoom_out = gio::ActionEntry::builder("action-zoom-out")
+        .activate(glib::clone!(
+            #[strong]
+            view,
+            #[strong]
+            css_provider,
+            move |_: &adw::ApplicationWindow, _, _| {
+                let font_size = get_zoom(&view.pango_context());
+                set_zoom(
+                    &css_provider,
+                    f64::max(3.0 / pango::SCALE as f64, font_size * pango::SCALE_SMALL),
+                );
+            }
+        ))
+        .build();
+
+    let action_zoom_reset = gio::ActionEntry::builder("action-zoom-reset")
+        .activate(glib::clone!(
+            #[strong]
+            css_provider,
+            move |_: &adw::ApplicationWindow, _, _| {
+                set_zoom(&css_provider, 15019.0 / pango::SCALE as f64);
+            }
+        ))
+        .build();
+    window.add_action_entries([action_zoom_in, action_zoom_out, action_zoom_reset]);
 
     let scroll = gtk::ScrolledWindow::builder()
         .vscrollbar_policy(gtk::PolicyType::External)
@@ -118,4 +165,18 @@ fn get_style_scheme() -> sourceview5::StyleScheme {
             .scheme("Adwaita")
             .unwrap()
     }
+}
+
+fn get_zoom(context: &pango::Context) -> f64 {
+    context.font_description().unwrap().size() as f64 / pango::SCALE as f64
+}
+
+fn set_zoom(css_provider: &gtk::CssProvider, value: f64) {
+    let font_css = format!(
+        "textview {{
+        font-size: {}px;
+        }}",
+        value
+    );
+    css_provider.load_from_string(font_css.as_str());
 }

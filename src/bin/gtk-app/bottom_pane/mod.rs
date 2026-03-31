@@ -8,12 +8,22 @@ pub fn create() -> gtk::Box {
 
     // https://discourse.gnome.org/t/how-is-gtkwidget-focus-on-click-supposed-to-work/19919
 
-    let bin = CustomBin::new();
+    let bin = CustomBin::new(20.0, 10.0);
+    // println!("x = {}", bin.x());
     // bin.set_label(gtk::Label::new(Some("")));
     bin.set_hexpand(true);
     bin.set_focusable(true);
     bin.set_focus_on_click(true);
     bin.add_css_class("fz");
+
+    let label = gtk::Label::new(Some(""));
+
+    let context = label.create_pango_context();
+    let mut desc = context.font_description().unwrap();
+    desc.set_absolute_size(2.0);
+    context.set_font_description(Some(&desc));
+
+    bin.set_child(Some(&label));
 
     // bin.child;
 

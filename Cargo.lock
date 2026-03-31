@@ -533,6 +533,7 @@ dependencies = [
  "console",
  "glib-build-tools",
  "goblin",
+ "gsk4",
  "gtk4",
  "libadwaita",
  "os_info",

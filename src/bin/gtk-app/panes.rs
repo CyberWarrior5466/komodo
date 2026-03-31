@@ -69,7 +69,7 @@ pub fn create(
 
     let side_initial = Cell::new(0);
     let side_last_known = Cell::new(0);
-    let action_toggle_side = gio::ActionEntry::builder("toggle-side")
+    let action_toggle_side = gio::ActionEntry::builder("action-toggle-side")
         .activate(glib::clone!(
             #[strong]
             side_pane,
@@ -100,7 +100,7 @@ pub fn create(
 
     let bottom_initial = Cell::new(0);
     let bottom_last_known = Cell::new(0);
-    let action_toggle_bottom = gio::ActionEntry::builder("toggle-bottom")
+    let action_toggle_bottom = gio::ActionEntry::builder("action-toggle-bottom")
         .activate(move |_: &adw::ApplicationWindow, _, _| {
             let pos = bottom_pane.position();
 
