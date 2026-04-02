@@ -17,7 +17,7 @@ pub fn create_source(
     adw_style.connect_dark_notify(glib::clone!(
         #[strong]
         buffer,
-        move |_| buffer.set_style_scheme(Some(&get_style_scheme())) // 14 20 28 38 52 70 94 126 169 226
+        move |_| buffer.set_style_scheme(Some(&get_style_scheme()))
     ));
 
     let view = sourceview5::View::builder()

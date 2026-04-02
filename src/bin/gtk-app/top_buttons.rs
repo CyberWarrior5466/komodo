@@ -1,7 +1,7 @@
 use adw::prelude::*;
 use gtk::{Align, Orientation};
 
-pub fn create() -> gtk::Box {
+pub fn create() -> (gtk::Box, gtk::Button) {
     let box_ = gtk::Box::builder()
         .orientation(Orientation::Horizontal)
         .css_classes(["linked"])
@@ -35,5 +35,5 @@ pub fn create() -> gtk::Box {
     box_.append(&run_btn);
     box_.append(&debug_btn);
 
-    return box_;
+    (box_, run_btn)
 }

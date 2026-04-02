@@ -9,8 +9,12 @@ but just optimisation and should still work without doing so
 
 ## gtk-app
 
-- [ ] **bottom panel / output window**
-
+- [ ] **bottom panel (output window)**
+  - [ ] instead of panicking in `komodo::run_program`, display a graphical error mesage
+  - [ ] enable can_focus when (swi 1)
+  - [ ] disable CustomBin
+  
+  
 - [ ] make default buffer a simple hello world program
 - [ ] make buffer persistent
 
@@ -21,25 +25,20 @@ but just optimisation and should still work without doing so
   If we have tabs then we need to be able to save multiple draft files
 
   For just implement drafts for a single file, and focus on implementing the debugger
-  
-
-- [ ] instead of panicking in `komodo::run_program`, display a graphical error mesage
 
 - [ ] implement debugger
   
 - [ ] fix animations bug
 - [ ] add keyboard shortcuts for run action
-- [ ] ask Ian if scrolling should be disabled for SpinButton
+- [ ] disable scrolling for SpinButton
 - [ ] copy over starting code from ~/Projects/project
-- [ ] add zoom shortcuts
 
 ## lib
 
+- [ ] **blt bug**
 - [ ] swich from `arm-linux-gnueabi` to `arm-none-eabi`
 - [ ] ldr instruction other cases
-- [ ] move `komodo::run_program` mock false case to `bin/cli`
 - [ ] add reverse subtract `rsb`
-- [ ] lsr, asr edge cases
 
 ---
 

@@ -114,9 +114,11 @@ pub fn run_program(
     cs: &Capstone,
     data_section: Vec<u8>,
     text_section: Vec<u8>,
-    regs: &mut Registers,
     instrs: capstone::Instructions,
+    regs: &mut Registers,
+    read_char: &impl Fn() -> char,
     print: &mut impl FnMut(String),
+    force_stop: impl Fn() -> bool,
 ) {
     while (regs.r15_pc as usize) < instrs.len() * 4 {
         let insn = &instrs[(regs.r15_pc / 4) as usize];
@@ -126,13 +128,25 @@ pub fn run_program(
         let arch_detail: ArchDetail = detail.arch_detail();
         let ops = arch_detail.operands();
 
-        let halts = execute_instruction(&data_section, &text_section, ops, regs, &mnemonic, print);
+        let halts = execute_instruction(
+            &data_section,
+            &text_section,
+            ops,
+            regs,
+            &mnemonic,
+            read_char,
+            print,
+        );
+
+        regs.r15_pc += 4;
+
+        if force_stop() {
+            break;
+        }
 
         if halts {
             break;
         }
-
-        regs.r15_pc += 4;
     }
 }
 
@@ -299,6 +313,7 @@ fn execute_instruction(
     ops: Vec<ArchOperand>,
     regs: &mut Registers,
     instr: &Instr,
+    read_char: &impl Fn() -> char,
     print: &mut impl FnMut(String),
 ) -> bool {
     let op_types: Vec<ArmOperandType> = ops
@@ -440,7 +455,7 @@ fn execute_instruction(
                 0 => print(format!("{}", regs.r0 as u8 as char)),
 
                 // read in character from terminal to the significant byte of r0
-                1 => regs.r0 = console::Term::stdout().read_char().unwrap() as i32,
+                1 => regs.r0 = read_char() as i32,
 
                 // halts execution
                 2 => return true,
@@ -477,10 +492,14 @@ fn execute_instruction(
             regs[rd] = ptr;
         }
 
-        ("b", [Imm(n)]) => regs.r15_pc = n - 4,
+        ("b", [Imm(n)]) => {
+            // The -4 subtraction cancels out pc+=4 in main loop
+            regs.r15_pc = n - 4
+        }
 
         ("bl", [Imm(n)]) => {
             regs.r14_lr = regs.r15_pc;
+            // The -4 subtraction cancels out pc+=4 in main loop
             regs.r15_pc = n - 4;
         }
 

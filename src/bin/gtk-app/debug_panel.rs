@@ -1,7 +1,7 @@
 use adw::prelude::*;
 use gtk::Orientation;
 
-pub fn create() -> gtk::Revealer {
+pub fn create() -> (gtk::Revealer, gtk::Button) {
     let btn_box = gtk::Box::new(Orientation::Vertical, 8);
     btn_box.add_css_class("darker");
 
@@ -62,9 +62,12 @@ pub fn create() -> gtk::Revealer {
     btn_box.append(&toolbar);
     btn_box.append(&toggle_group);
 
-    gtk::Revealer::builder()
-        .child(&btn_box)
-        .reveal_child(false)
-        .transition_type(gtk::RevealerTransitionType::SlideLeft)
-        .build()
+    (
+        gtk::Revealer::builder()
+            .child(&btn_box)
+            .reveal_child(false)
+            .transition_type(gtk::RevealerTransitionType::SlideLeft)
+            .build(),
+        stop,
+    )
 }

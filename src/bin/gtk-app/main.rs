@@ -7,11 +7,15 @@ mod status_bar;
 mod top_buttons;
 
 use adw::prelude::*;
+use async_channel::Sender;
 use editor_pane::disasm_object::DisasmObject;
 use gtk::{Orientation, gdk, gio, glib};
 use komodo::{RegTuple, Registers};
 use side_pane::reg_object::RegObject;
-use std::io::Write;
+use std::{
+    io::Write,
+    sync::{Arc, Mutex},
+};
 use tempfile::NamedTempFile;
 
 fn main() -> glib::ExitCode {
@@ -71,9 +75,8 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
         .build();
 
     let toolbar = adw::ToolbarView::new();
-    let header = adw::HeaderBar::builder()
-        .title_widget(&top_buttons::create())
-        .build();
+    let (top_buttons, run_btn) = top_buttons::create();
+    let header = adw::HeaderBar::builder().title_widget(&top_buttons).build();
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&container));
 
@@ -89,14 +92,15 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
         .map(|v| RegObject::new(v.0.to_string(), v.1))
         .collect::<Vec<RegObject>>();
 
+    let (b_pane, b_text_view) = bottom_pane::create();
     container.append(&panes::create(
         &window,
         &center_box,
         &side_pane::create(&vec_reg_objs),
-        &bottom_pane::create(),
+        &b_pane,
     ));
 
-    let revealer = debug_panel::create();
+    let (revealer, stop_btn) = debug_panel::create();
     container.append(&revealer);
 
     let action_debug = gio::ActionEntry::builder("action-debug")
@@ -112,46 +116,97 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
 
     toolbar.add_bottom_bar(&status_bar::create());
 
+    let (sender, receiver) = async_channel::bounded::<(String, Option<Vec<RegTuple>>)>(1);
+    let stopped = Arc::new(Mutex::new(false));
+    let first_execution = Arc::new(Mutex::new(true));
+
     let action_run = gio::ActionEntry::builder("action-run")
         .activate(glib::clone!(
             #[strong]
+            sender,
+            #[strong]
             buffer,
+            #[strong]
+            vec_reg_objs,
+            #[strong]
+            stopped,
+            #[strong]
+            first_execution,
             move |_: &adw::ApplicationWindow, _, _| {
-                reset_pc(vec_reg_objs.clone());
+                reset_pc(&vec_reg_objs);
 
                 let vec_regs = vec_reg_objs
                     .iter()
                     .map(|obj| (obj.name(), obj.number()))
                     .collect::<Vec<RegTuple>>();
+                let buffer_text = buffer_get_text(&buffer);
 
-                let cs = komodo::new_capstone();
-                let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
-                write!(input_file, "{}", buffer_get_text(&buffer)).unwrap();
-                let input_path = input_file.path().as_os_str().to_owned();
-                let print_dism = |str| glib::g_printerr!("{str}");
-                let (data_section, text_section, instrs) =
-                    komodo::disassemble(&cs, input_path, print_dism);
-
-                let mut regs = Registers::new();
-                regs.apply_ui_updates(&vec_regs);
-                let mut print = |str: String| glib::g_print!("{}", str);
-                komodo::run_program(
-                    &cs,
-                    data_section,
-                    text_section,
-                    &mut regs,
-                    instrs,
-                    &mut print,
-                );
-
-                let vec_regs_return = regs.to_ui_format();
-                apply_backend_updates(vec_reg_objs.clone(), vec_regs_return);
+                gio::spawn_blocking(glib::clone!(
+                    #[strong]
+                    sender,
+                    #[strong]
+                    stopped,
+                    #[strong]
+                    first_execution,
+                    move || {
+                        on_action_run(
+                            &vec_regs,
+                            buffer_text,
+                            sender.clone(),
+                            stopped.clone(),
+                            first_execution.clone(),
+                        );
+                        {
+                            *first_execution.lock().unwrap() = false;
+                        }
+                    }
+                ));
             }
         ))
         .build();
-    window.add_action_entries([action_run]);
 
-    // ---
+    stop_btn.connect_clicked(glib::clone!(
+        #[strong]
+        stopped,
+        move |_| *stopped.lock().unwrap() = true
+    ));
+
+    glib::spawn_future_local(glib::clone!(
+        #[weak]
+        run_btn,
+        #[strong]
+        b_pane,
+        async move {
+            while let Ok(signal) = receiver.recv().await {
+                match signal {
+                    (s, Some(vec_regs)) => {
+                        text_view_append(&b_text_view, s);
+
+                        glib::idle_add_local(glib::clone!(
+                            #[strong]
+                            b_pane,
+                            move || {
+                                let vadj = b_pane.vadjustment();
+                                vadj.set_value(f64::MAX);
+                                b_pane.set_vadjustment(Some(&vadj));
+                                return glib::ControlFlow::Break;
+                            }
+                        ));
+
+                        run_btn.set_sensitive(true);
+                        apply_backend_updates(&vec_reg_objs, vec_regs);
+                    }
+                    (s, None) => {
+                        text_view_append(&b_text_view, s);
+
+                        run_btn.set_sensitive(false);
+                    }
+                }
+            }
+        }
+    ));
+
+    window.add_action_entries([action_run]);
 
     let action_view_source = gio::ActionEntry::builder("action-view-source")
         .activate(glib::clone!(
@@ -210,23 +265,86 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
     window.present();
 }
 
+fn on_action_run(
+    vec_regs: &Vec<RegTuple>,
+    buffer_text: String,
+    sender: Sender<(String, Option<Vec<(String, i32)>>)>,
+    stopped: Arc<Mutex<bool>>,
+    first_execution: Arc<Mutex<bool>>,
+) {
+    let msg: String;
+    {
+        msg = if *first_execution.lock().unwrap() {
+            "> running".to_string()
+        } else {
+            "\n\n> running".to_string()
+        }
+    }
+    sender.send_blocking((msg, None)).unwrap();
+
+    let cs = komodo::new_capstone();
+    let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
+    write!(input_file, "{}", buffer_text).unwrap();
+    let input_path = input_file.path().as_os_str().to_owned();
+    let print_dism = |str| glib::g_printerr!("{str}");
+    let (data_section, text_section, instrs) = komodo::disassemble(&cs, input_path, print_dism);
+
+    let mut regs = Registers::new();
+    regs.apply_ui_updates(&vec_regs);
+    let read_char = || 'a';
+    let mut print = |str: String| sender.send_blocking((str, None)).unwrap();
+    let is_stopped = || *stopped.lock().unwrap();
+
+    komodo::run_program(
+        &cs,
+        data_section,
+        text_section,
+        instrs,
+        &mut regs,
+        &read_char,
+        &mut print,
+        is_stopped,
+    );
+
+    let vec_regs_ret = regs.to_ui_format();
+
+    {
+        let mut stopped_handle = stopped.lock().unwrap();
+        if *stopped_handle {
+            sender
+                .send_blocking(("\n[stopped]".to_string(), Some(vec_regs_ret)))
+                .unwrap();
+            *stopped_handle = false;
+        } else {
+            sender
+                .send_blocking(("\n[exited]".to_string(), Some(vec_regs_ret)))
+                .unwrap();
+        }
+    }
+}
+
 fn buffer_get_text(buffer: &sourceview5::Buffer) -> String {
     let bounds = buffer.bounds();
     let text = buffer.text(&bounds.0, &bounds.1, true);
     return text.to_string();
 }
 
-fn apply_backend_updates(vec_objs: Vec<RegObject>, vec_regs: Vec<RegTuple>) {
+fn apply_backend_updates(vec_objs: &Vec<RegObject>, vec_regs: Vec<RegTuple>) {
     for (i, obj) in vec_objs.iter().enumerate() {
         obj.set_number(vec_regs[i].1);
     }
 }
 
-fn reset_pc(vec_objs: Vec<RegObject>) {
+fn reset_pc(vec_objs: &Vec<RegObject>) {
     for obj in vec_objs {
         if obj.name() == "r15/pc" {
             obj.set_number(0);
             return;
         }
     }
+}
+
+fn text_view_append(text_view: &gtk::TextView, text: String) {
+    let buffer = text_view.buffer();
+    buffer.insert(&mut buffer.end_iter(), text.as_str());
 }

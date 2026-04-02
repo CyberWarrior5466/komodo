@@ -28,10 +28,6 @@ scrolledwindow {
     background-color: var(--view-bg-color);
 }
 
-.fz:focus {
-    /*background-color: red;*/
-}
-
-textview {
-    /*font-size: 20pt;*/
+bottom_textview {
+    padding: 8px;
 }
