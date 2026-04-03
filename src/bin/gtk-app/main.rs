@@ -9,6 +9,7 @@ mod top_buttons;
 use adw::prelude::*;
 use async_channel::Sender;
 use editor_pane::disasm_object::DisasmObject;
+use gtk::glib::Propagation;
 use gtk::{Orientation, gdk, gio, glib};
 use komodo::{RegTuple, Registers};
 use side_pane::reg_object::RegObject;
@@ -17,6 +18,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tempfile::NamedTempFile;
+
+enum Signal {
+    Log(String),
+    Halt(String, Vec<RegTuple>),
+}
 
 fn main() -> glib::ExitCode {
     gio::resources_register_include!("compiled.gresource").unwrap();
@@ -116,9 +122,23 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
 
     toolbar.add_bottom_bar(&status_bar::create());
 
-    let (sender, receiver) = async_channel::bounded::<(String, Option<Vec<RegTuple>>)>(1);
+    let (sender, receiver) = async_channel::bounded::<Signal>(1);
     let stopped = Arc::new(Mutex::new(false));
     let first_execution = Arc::new(Mutex::new(true));
+    let read_char = Arc::new(Mutex::new(Option::<char>::None));
+
+    let controller = gtk::EventControllerKey::new();
+    controller.connect_key_pressed(glib::clone!(
+        #[strong]
+        read_char,
+        move |_, key, _, _| {
+            if let Some(unicode) = key.to_unicode() {
+                *read_char.lock().unwrap() = Some(unicode);
+            }
+            Propagation::Stop
+        }
+    ));
+    b_text_view.add_controller(controller);
 
     let action_run = gio::ActionEntry::builder("action-run")
         .activate(glib::clone!(
@@ -130,6 +150,8 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
             vec_reg_objs,
             #[strong]
             stopped,
+            #[strong]
+            read_char,
             #[strong]
             first_execution,
             move |_: &adw::ApplicationWindow, _, _| {
@@ -147,6 +169,8 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
                     #[strong]
                     stopped,
                     #[strong]
+                    read_char,
+                    #[strong]
                     first_execution,
                     move || {
                         on_action_run(
@@ -154,6 +178,7 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
                             buffer_text,
                             sender.clone(),
                             stopped.clone(),
+                            read_char.clone(),
                             first_execution.clone(),
                         );
                         {
@@ -179,7 +204,23 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
         async move {
             while let Ok(signal) = receiver.recv().await {
                 match signal {
-                    (s, Some(vec_regs)) => {
+                    Signal::Log(s) => {
+                        text_view_append(&b_text_view, s);
+
+                        glib::idle_add_local(glib::clone!(
+                            #[strong]
+                            b_pane,
+                            move || {
+                                let vadj = b_pane.vadjustment();
+                                vadj.set_value(f64::MAX);
+                                b_pane.set_vadjustment(Some(&vadj));
+                                return glib::ControlFlow::Break;
+                            }
+                        ));
+
+                        run_btn.set_sensitive(false);
+                    }
+                    Signal::Halt(s, vec_regs) => {
                         text_view_append(&b_text_view, s);
 
                         glib::idle_add_local(glib::clone!(
@@ -195,11 +236,6 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
 
                         run_btn.set_sensitive(true);
                         apply_backend_updates(&vec_reg_objs, vec_regs);
-                    }
-                    (s, None) => {
-                        text_view_append(&b_text_view, s);
-
-                        run_btn.set_sensitive(false);
                     }
                 }
             }
@@ -236,8 +272,7 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
                 let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
                 write!(input_file, "{}", buffer_get_text(&buffer)).unwrap();
                 let input_path = input_file.path().as_os_str().to_owned();
-                let print_dism = |str| glib::g_printerr!("{str}");
-                let (_, _, instrs) = komodo::disassemble(&cs, input_path, print_dism);
+                let (_, _, instrs) = komodo::disassemble(&cs, input_path).unwrap();
 
                 model.remove_all();
                 for i in instrs.iter() {
@@ -268,56 +303,76 @@ fn build_ui(app: &adw::Application, css_provider: &gtk::CssProvider) {
 fn on_action_run(
     vec_regs: &Vec<RegTuple>,
     buffer_text: String,
-    sender: Sender<(String, Option<Vec<(String, i32)>>)>,
+    sender: Sender<Signal>,
     stopped: Arc<Mutex<bool>>,
+    read_char: Arc<Mutex<Option<char>>>,
     first_execution: Arc<Mutex<bool>>,
 ) {
     let msg: String;
     {
         msg = if *first_execution.lock().unwrap() {
-            "> running".to_string()
+            "> assembling".to_string()
         } else {
-            "\n\n> running".to_string()
+            "\n\n> assembling".to_string()
         }
     }
-    sender.send_blocking((msg, None)).unwrap();
+    sender.send_blocking(Signal::Log(msg)).unwrap();
 
     let cs = komodo::new_capstone();
     let mut input_file: NamedTempFile = NamedTempFile::new().unwrap();
     write!(input_file, "{}", buffer_text).unwrap();
     let input_path = input_file.path().as_os_str().to_owned();
-    let print_dism = |str| glib::g_printerr!("{str}");
-    let (data_section, text_section, instrs) = komodo::disassemble(&cs, input_path, print_dism);
 
-    let mut regs = Registers::new();
-    regs.apply_ui_updates(&vec_regs);
-    let read_char = || 'a';
-    let mut print = |str: String| sender.send_blocking((str, None)).unwrap();
-    let is_stopped = || *stopped.lock().unwrap();
-
-    komodo::run_program(
-        &cs,
-        data_section,
-        text_section,
-        instrs,
-        &mut regs,
-        &read_char,
-        &mut print,
-        is_stopped,
-    );
-
-    let vec_regs_ret = regs.to_ui_format();
-
-    {
-        let mut stopped_handle = stopped.lock().unwrap();
-        if *stopped_handle {
+    match komodo::disassemble(&cs, input_path) {
+        Ok((data_section, text_section, instrs)) => {
             sender
-                .send_blocking(("\n[stopped]".to_string(), Some(vec_regs_ret)))
+                .send_blocking(Signal::Log("\n> executing".to_string()))
                 .unwrap();
-            *stopped_handle = false;
-        } else {
+
+            let mut regs = Registers::new();
+            regs.apply_ui_updates(&vec_regs);
+            let read_char = || {
+                loop {
+                    let mut handle = read_char.lock().unwrap();
+                    if let Some(c) = *handle {
+                        *handle = None;
+                        return c;
+                    }
+                }
+            };
+            let mut print = |str: String| sender.send_blocking(Signal::Log(str)).unwrap();
+            let is_stopped = || *stopped.lock().unwrap();
+
+            komodo::run_program(
+                &cs,
+                data_section,
+                text_section,
+                instrs,
+                &mut regs,
+                &read_char,
+                &mut print,
+                is_stopped,
+            );
+
+            let vec_regs_ret = regs.to_ui_format();
+
+            {
+                let mut stopped_handle = stopped.lock().unwrap();
+                if *stopped_handle {
+                    sender
+                        .send_blocking(Signal::Halt("\n[stopped]".to_string(), vec_regs_ret))
+                        .unwrap();
+                    *stopped_handle = false;
+                } else {
+                    sender
+                        .send_blocking(Signal::Halt("\n[exited]".to_string(), vec_regs_ret))
+                        .unwrap();
+                }
+            }
+        }
+        Err(s) => {
             sender
-                .send_blocking(("\n[exited]".to_string(), Some(vec_regs_ret)))
+                .send_blocking(Signal::Halt(format!("\n{}[failure]", s), vec_regs.clone()))
                 .unwrap();
         }
     }

@@ -94,20 +94,17 @@ impl From<&str> for Condition {
 pub fn disassemble<'a>(
     cs: &'a Capstone,
     input_path: OsString,
-    print: impl Fn(String),
-) -> (Vec<u8>, Vec<u8>, capstone::Instructions<'a>) {
+) -> Result<(Vec<u8>, Vec<u8>, capstone::Instructions<'a>), String> {
     let mut output_file = tempfile::NamedTempFile::new().unwrap();
     let output_path = output_file.path().as_os_str().to_os_string();
 
-    run_gnu_gas(input_path, output_path, print).expect("could not run gnu gas");
+    run_gnu_gas(input_path, output_path)?;
 
     let (data_section, text_section) = extract_sections(&mut output_file);
 
-    let instrs = cs
-        .disasm_all(text_section.as_slice(), 0)
-        .expect("Failed to diassemble");
+    let instrs = cs.disasm_all(text_section.as_slice(), 0).unwrap();
 
-    (data_section, text_section, instrs)
+    Ok((data_section, text_section, instrs))
 }
 
 pub fn run_program(
@@ -188,11 +185,7 @@ fn extract_sections(output_file: &mut NamedTempFile) -> (Vec<u8>, Vec<u8>) {
     (data_section.unwrap(), text_section.unwrap())
 }
 
-fn run_gnu_gas(
-    input_path: OsString,
-    output_path: OsString,
-    print: impl Fn(String),
-) -> Result<(), ()> {
+fn run_gnu_gas(input_path: OsString, output_path: OsString) -> Result<(), String> {
     let command = match os_info::get().os_type() {
         os_info::Type::Ubuntu | os_info::Type::Debian => "arm-linux-gnueabi-as",
         os_info::Type::Fedora => "arm-linux-gnu-as",
@@ -228,10 +221,7 @@ fn run_gnu_gas(
             if output.status.success() {
                 return Ok(());
             }
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            print(err);
-
-            Err(())
+            Err(String::from_utf8_lossy(&output.stderr).to_string())
         }
     }
 }

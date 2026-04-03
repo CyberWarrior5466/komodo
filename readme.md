@@ -10,9 +10,10 @@ but just optimisation and should still work without doing so
 ## gtk-app
 
 - [ ] **bottom panel (output window)**
-  - [ ] instead of panicking in `komodo::run_program`, display a graphical error mesage
+  - [ ] instead of panicking in `komodo::run_program`, display an error message
+  - [ ] add assembling log line
+  - [ ] cache disassembly stage so faster
   - [ ] enable can_focus when (swi 1)
-  - [ ] disable CustomBin
   
   
 - [ ] make default buffer a simple hello world program
