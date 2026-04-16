@@ -32,7 +32,7 @@ hello:
 
 The compile time constants (`EXIT` and `PRINT_STR`) as well as `.section` and `.asciz` directive are features of the GNU assembler `as`. They are documented in [section 5.2](https://sourceware.org/binutils/docs/as/Setting-Symbols.html) and [section 7](https://sourceware.org/binutils/docs/as/Pseudo-Ops.html) of the user guide.
 
-Five system calls are available, which have the same behaviour as the [original komodo]():
+Five system calls are available, taken from [original komodo](https://studentnet.cs.manchester.ac.uk/resources/software/komodo/manual.html):
 
 |Instruction|Behaviour|
 |-|-|
@@ -44,19 +44,19 @@ Five system calls are available, which have the same behaviour as the [original 
 
 # Development
 
-Several development libraries are required, which can be installed on Debian/Ubuntu with the following command:
+First install development libraries, which is done on Debian/Ubuntu with:
 
 ```shell
 sudo apt install pkg-config libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev desktop-file-utils gcc gtk-update-icon-cache binutils-arm-linux-gnueabi -y
 ```
 
-Launch the program with:
+Run the program with cargo:
 
 ```shell
 cargo run --bin gtk-app
 ```
 
-Launch the CLI with:
+Run the CLI with cargo:
 
 ```shell
 cargo run --bin cli
