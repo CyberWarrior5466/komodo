@@ -1,8 +1,8 @@
 # Komodo
 
-<img src="examples/screenshot.png" width="800">
-    
 Komodo is a graphical debugger for ARMv4 assembly designed for education.
+
+<img src="examples/screenshot.png" width="800">
 
 This project is written in rust and uses `gtk4` and `libadwaita` rust crates for the UI. As well as `goblin` to parse ELF files and `capstone` as a disassembly framework.
 
