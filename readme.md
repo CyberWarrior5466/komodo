@@ -54,6 +54,8 @@ Also see [rust book](https://doc.rust-lang.org/stable/book/) and [gtk-rs book](h
 
 Several example programs are available in the [examples/](examples/) folder including [examples/hello.s](examples/hello.s):
 
+Paste the following example code into the application and hit the execute (▶) button.
+
 ```asm
 EXIT = 2
 PRINT_STR = 3
