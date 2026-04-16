@@ -62,6 +62,12 @@ Run the CLI with cargo:
 cargo run --bin cli
 ```
 
+Run tests with cargo:
+
+```shell
+cargo test
+```
+
 For development, it may be helpful to install the following tools:
 
 ```shell
