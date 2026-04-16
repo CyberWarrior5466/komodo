@@ -326,7 +326,7 @@ fn on_action_run(
     match komodo::disassemble(&cs, input_path) {
         Ok((data_section, text_section, instrs)) => {
             sender
-                .send_blocking(Signal::Log("\n> executing".to_string()))
+                .send_blocking(Signal::Log("\n> executing\n".to_string()))
                 .unwrap();
 
             let mut regs = Registers::new();
@@ -360,12 +360,12 @@ fn on_action_run(
                 let mut stopped_handle = stopped.lock().unwrap();
                 if *stopped_handle {
                     sender
-                        .send_blocking(Signal::Halt("\n[stopped]".to_string(), vec_regs_ret))
+                        .send_blocking(Signal::Halt("[stopped]".to_string(), vec_regs_ret))
                         .unwrap();
                     *stopped_handle = false;
                 } else {
                     sender
-                        .send_blocking(Signal::Halt("\n[exited]".to_string(), vec_regs_ret))
+                        .send_blocking(Signal::Halt("[exited]".to_string(), vec_regs_ret))
                         .unwrap();
                 }
             }

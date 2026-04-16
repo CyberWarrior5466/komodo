@@ -14,12 +14,12 @@ pub fn create() -> (gtk::Revealer, gtk::Button) {
     let step_over = gtk::Button::builder()
         .icon_name("step-over-symbolic")
         .build();
-    let step_in = gtk::Button::builder()
-        .icon_name("arrow-pointing-at-line-down-symbolic")
-        .build();
-    let step_out = gtk::Button::builder()
-        .icon_name("arrow-pointing-away-from-line-up-symbolic")
-        .build();
+    // let step_in = gtk::Button::builder()
+    //     .icon_name("arrow-pointing-at-line-down-symbolic")
+    //     .build();
+    // let step_out = gtk::Button::builder()
+    //     .icon_name("arrow-pointing-away-from-line-up-symbolic")
+    //     .build();
     let restart = gtk::Button::builder()
         .icon_name("arrow-circular-top-left-symbolic")
         .build();
@@ -27,8 +27,8 @@ pub fn create() -> (gtk::Revealer, gtk::Button) {
 
     toolbar.append(&continue_);
     toolbar.append(&step_over);
-    toolbar.append(&step_out);
-    toolbar.append(&step_in);
+    // toolbar.append(&step_out);
+    // toolbar.append(&step_in);
     toolbar.append(&restart);
     toolbar.append(&stop);
 

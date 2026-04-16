@@ -1,100 +1,68 @@
-# Todo
+# Komodo
 
-clicking the switch button,
-calls disassemble and clears `Vec<DisasmObject>` and appends new values
+<img src="examples/screenshot.png" width="800">
+    
+Komodo is a graphical debugger for ARMv4 assembly designed for education.
 
-you could make it so clicking run checks if code has already been disassembled,
-but just optimisation and should still work without doing so
+This project is written in rust and uses `gtk4` and `libadwaita` rust crates for the UI. As well as `goblin` to parse ELF files and `capstone` as a disassembly framework.
 
+This project also relies on arm cross toolchain for GNU binutils to be installed:
 
-## gtk-app
+|OS|Package|Install|
+|-|-|-|
+|Debian/Ubuntu|`arm-linux-gnueabi-as`|`apt install binutils-arm-linux-gnueabi`|
+|Fedora|`arm-linux-gnu-as`|`dnf install binutils-arm-linux-gnu`|
 
-- [ ] **bottom panel (output window)**
-  - [ ] instead of panicking in `komodo::run_program`, display an error message
-  - [ ] add assembling log line
-  - [ ] cache disassembly stage so faster
-  - [ ] enable can_focus when (swi 1)
-  
-  
-- [ ] make default buffer a simple hello world program
-- [ ] make buffer persistent
-
-  on buffer change save changes to file
-  gnome text editor saves drafts to `~/.local/share/org.gnome.TextEditor/drafts`
-  file location saved in gsettings, if gsettings is empty create the file
-
-  If we have tabs then we need to be able to save multiple draft files
-
-  For just implement drafts for a single file, and focus on implementing the debugger
-
-- [ ] implement debugger
-  
-- [ ] fix animations bug
-- [ ] add keyboard shortcuts for run action
-- [ ] disable scrolling for SpinButton
-- [ ] copy over starting code from ~/Projects/project
-
-## lib
-
-- [ ] **blt bug**
-- [ ] swich from `arm-linux-gnueabi` to `arm-none-eabi`
-- [ ] ldr instruction other cases
-- [ ] add reverse subtract `rsb`
-
----
-
-Debugging using gas, qemu, gdb
-
-```shell
-sudo apt install binutils-arm-linux-gnueabi qemu-user gdb-multiarch -y
-```
-
-```fish
-arm-linux-gnueabi-as -march=armv4 -D hello.s -o hello.o \
-  && arm-linux-gnueabi-ld hello.o -o hello \
-  && begin;
-    qemu-arm -g 1234 ./hello \
-      & gdb-multiarch -ex 'set architecture arm' -ex 'file hello' -ex 'target remote localhost:1234' -ex 'layout split' -ex 'layout regs'
-    end;
-```
-
-Debugging libc linked asm file
-
-```fish
-arm-linux-gnueabi-gcc -march=armv4 -ggdb hello_libc.s -o hello_libc \
-  && begin;
-    qemu-arm -g 1234 ./hello_libc \
-      & gdb-multiarch -ex 'set architecture arm' -ex 'file hello_libc' -ex 'target remote localhost:1234' -ex 'layout split' -ex 'layout regs'
-    end;
-```
-
-Create `hello.s` file
+Several example programs are available in the [examples/](examples/) folder including [examples/hello.s](examples/hello.s):
 
 ```asm
-.global _start
-_start:
-  // code here
-  // ...
-  
-  // exit syscall
-  mov     r7, #1
-  mov     r0, #0
-  svc     #0
+EXIT = 2
+PRINT_STR = 3
+
+.section .data
+hello:
+    .asciz "Hello World!\n"
+
+.section .text
+    ldr r0, =hello
+    swi #PRINT_STR
+
+    swi #EXIT
 ```
 
-see p226 for msr instruction
+The compile time constants (`EXIT` and `PRINT_STR`) as well as `.section` and `.asciz` directive are features of the GNU assembler `as`. They are documented in [section 5.2](https://sourceware.org/binutils/docs/as/Setting-Symbols.html) and [section 7](https://sourceware.org/binutils/docs/as/Pseudo-Ops.html) of the user guide.
 
----
+Five system calls are available, which have the same behaviour as the [original komodo]():
 
-See [GUI development with Rust and GTK 4 book](https://gtk-rs.org/gtk4-rs/stable/latest/book/)
+|Instruction|Behaviour|
+|-|-|
+|`swi 0`|Prints the least significant byte of `r0` as a character|
+|`swi 1`|Read in character from user to the significant byte of `r0`|
+|`swi 2`|Halts execution|
+|`swi 3`|Prints a string, pointed to by `r0`|
+|`swi 4`|Prints the value of `r0` as decimal|
 
-Install libraries
+# Development
+
+Several development libraries are required, which can be installed on Debian/Ubuntu with the following command:
 
 ```shell
-sudo apt install pkg-config libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev meson desktop-file-utils gcc gtk-update-icon-cache binutils-arm-linux-gnueabi -y
+sudo apt install pkg-config libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev desktop-file-utils gcc gtk-update-icon-cache binutils-arm-linux-gnueabi -y
 ```
 
-Also consider installing developer tools
+Launch the program with:
+
+```shell
+cargo run --bin gtk-app
+```
+
+Launch the CLI with:
+
+```shell
+cargo run --bin cli
+```
+
+For development, it may be helpful to install the following tools:
 
 ```shell
 sudo apt install libadwaita-1-examples -y
@@ -104,6 +72,4 @@ flatpak install org.gnome.design.IconLibrary
 # run with `flatpak run org.gnome.design.IconLibrary`
 ```
 
----
-
-p193
+Also see [rust book](https://doc.rust-lang.org/stable/book/) and [gtk-rs book](https://gtk-rs.org/gtk4-rs/stable/latest/book/).
