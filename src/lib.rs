@@ -495,8 +495,8 @@ fn execute_instruction(
 
         (
             "adc" | "bl" | "ldrb" | "ldrbt" | "ldrh" | "ldrsb" | "ldrsh" | "ldrt" | "msr" | "rsb"
-            | "rsc" | "smlal" | "smull" | "str" | "strb" | "strbt" | "strh" | "strt" | "subs"
-            | "swp" | "swpb" | "teq" | "tst" | "umlal" | "umull",
+            | "rsc" | "smlal" | "smull" | "str" | "strb" | "strbt" | "strh" | "strt" | "swp"
+            | "swpb" | "teq" | "tst" | "umlal" | "umull",
             _,
         ) => {
             todo!("{} mnemonic", instr.mnemonic);
